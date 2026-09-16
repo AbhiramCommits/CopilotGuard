@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: copilotguard
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/copilotguard}
+    username: ${POSTGRES_USER:copilotguard}
+    password: ${POSTGRES_PASSWORD:copilotguard}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/copilotguard}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+copilotguard:
+  anthropic-api-key: ${ANTHROPIC_API_KEY:}

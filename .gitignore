@@ -1,0 +1,24 @@
+.env
+.DS_Store
+
+# Java / Maven
+service/target/
+*.class
+*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.ipr
+*.iws
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/

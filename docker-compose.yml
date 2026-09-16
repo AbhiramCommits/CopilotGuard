@@ -36,6 +36,7 @@ services:
       POSTGRES_PASSWORD: copilotguard
       MONGO_URI: mongodb://mongo:27017/copilotguard
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      COPILOTGUARD_API_KEY: ${COPILOTGUARD_API_KEY:-}
     ports:
       - "8080:8080"
     depends_on:

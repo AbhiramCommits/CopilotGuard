@@ -29,6 +29,7 @@ class GitHubClientTest {
                         null,
                         null,
                         new CopilotGuardProperties.Github(WM.baseUrl(), WM.baseUrl(), token),
+                        null,
                         null),
                 new ObjectMapper());
     }

@@ -1,6 +1,7 @@
 package com.copilotguard.api;
 
 import com.copilotguard.audit.BlockedSecretException;
+import com.copilotguard.cost.CostLimitExceededException;
 import com.copilotguard.diff.DiffParseException;
 import com.copilotguard.github.GitHubException;
 import com.copilotguard.llm.LlmException;
@@ -35,6 +36,12 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(BlockedSecretException.class)
     public ResponseEntity<ApiError> handleBlockedSecret(BlockedSecretException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(new ApiError(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(CostLimitExceededException.class)
+    public ResponseEntity<ApiError> handleCostLimit(CostLimitExceededException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(new ApiError(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getMessage()));
     }

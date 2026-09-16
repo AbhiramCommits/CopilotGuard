@@ -31,4 +31,5 @@ public class PromptAudit {
     private Integer tokensOut;
     private List<String> redactionHits;
     private Instant timestamp;
+    private String correlationId;
 }

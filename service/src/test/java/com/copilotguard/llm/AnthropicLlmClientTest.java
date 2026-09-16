@@ -46,6 +46,7 @@ class AnthropicLlmClientTest {
                                 Duration.ofSeconds(30),
                                 prices),
                         null,
+                        null,
                         null);
         return new AnthropicLlmClient(properties, MAPPER);
     }

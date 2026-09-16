@@ -7,7 +7,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "copilotguard")
 public record CopilotGuardProperties(
-        String anthropicApiKey, Anthropic anthropic, Github github, Validation validation) {
+        String anthropicApiKey,
+        Anthropic anthropic,
+        Github github,
+        Validation validation,
+        Cost cost) {
 
     public record Anthropic(
             String baseUrl,
@@ -29,4 +33,6 @@ public record CopilotGuardProperties(
             long memoryMb,
             double cpus,
             String junitConsoleJar) {}
+
+    public record Cost(BigDecimal maxUsdPerRun) {}
 }

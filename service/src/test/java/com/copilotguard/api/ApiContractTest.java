@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.copilotguard.audit.BlockedSecretException;
 import com.copilotguard.audit.PromptAudit;
 import com.copilotguard.audit.PromptAuditRepository;
+import com.copilotguard.config.ApiKeyAuthFilter;
+import com.copilotguard.config.SecurityConfig;
 import com.copilotguard.diff.DiffParseException;
 import com.copilotguard.domain.CommentCategory;
 import com.copilotguard.domain.GeneratedTest;
@@ -41,10 +43,12 @@ import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.actuate.health.Status;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = {HealthController.class, ReviewController.class, MetricsController.class})
+@Import({SecurityConfig.class, ApiKeyAuthFilter.class})
 class ApiContractTest {
 
     @Autowired MockMvc mockMvc;
@@ -107,7 +111,8 @@ class ApiContractTest {
                                         "class FooTest {}")),
                         List.of(
                                 new ReviewResponse.CommentSummary(
-                                        1L, "Foo.java", 3, "BLOCKER", "BUG", "bad")));
+                                        1L, "Foo.java", 3, "BLOCKER", "BUG", "bad")),
+                        List.of());
         when(reviewService.createReview(any())).thenReturn(response);
 
         mockMvc.perform(
@@ -207,6 +212,7 @@ class ApiContractTest {
                         .tokensOut(5)
                         .redactionHits(List.of("email"))
                         .timestamp(Instant.parse("2026-09-16T00:00:00Z"))
+                        .correlationId("corr-1")
                         .build();
         when(promptAuditRepository.findByRunId("42")).thenReturn(List.of(audit));
 
@@ -222,6 +228,7 @@ class ApiContractTest {
                 .andExpect(jsonPath("$.status").value("SUCCEEDED"))
                 .andExpect(jsonPath("$.audits[0].templateId").value("generate_tests"))
                 .andExpect(jsonPath("$.audits[0].redactionHits[0]").value("email"))
+                .andExpect(jsonPath("$.audits[0].correlationId").value("corr-1"))
                 .andExpect(jsonPath("$.verdicts[0].validationStatus").value("PASSING"));
     }
 

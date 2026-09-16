@@ -14,7 +14,8 @@ public record ReviewResponse(
         long tokenOutput,
         BigDecimal costUsd,
         List<TestSummary> generatedTests,
-        List<CommentSummary> comments) {
+        List<CommentSummary> comments,
+        List<String> degradations) {
 
     public record TestSummary(
             String filePath,

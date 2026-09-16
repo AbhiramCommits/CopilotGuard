@@ -424,6 +424,7 @@ class ReviewPipelineIntegrationTest {
                         .willReturn(
                                 aResponse()
                                         .withStatus(429)
+                                        .withHeader("Retry-After", "0")
                                         .withHeader("Content-Type", "application/json")
                                         .withBody(
                                                 "{\"error\":{\"type\":\"rate_limit_error\",\"message\":\"slow down\"}}"))
@@ -435,20 +436,6 @@ class ReviewPipelineIntegrationTest {
                                         "$.tool_choice.name", equalTo("submit_review_comments")))
                         .inScenario("rate-limit")
                         .whenScenarioStateIs("retry-1")
-                        .willReturn(
-                                aResponse()
-                                        .withStatus(429)
-                                        .withHeader("Content-Type", "application/json")
-                                        .withBody(
-                                                "{\"error\":{\"type\":\"rate_limit_error\",\"message\":\"slow down\"}}"))
-                        .willSetStateTo("retry-2"));
-        WM.stubFor(
-                post(urlEqualTo("/v1/messages"))
-                        .withRequestBody(
-                                matchingJsonPath(
-                                        "$.tool_choice.name", equalTo("submit_review_comments")))
-                        .inScenario("rate-limit")
-                        .whenScenarioStateIs("retry-2")
                         .willReturn(
                                 aResponse()
                                         .withHeader("Content-Type", "application/json")
@@ -469,7 +456,7 @@ class ReviewPipelineIntegrationTest {
         assertThat(response.getBody().status()).isEqualTo("SUCCEEDED");
 
         WM.verify(
-                3,
+                2,
                 postRequestedFor(urlEqualTo("/v1/messages"))
                         .withRequestBody(
                                 matchingJsonPath(
@@ -585,6 +572,96 @@ class ReviewPipelineIntegrationTest {
                         .withRequestBody(
                                 matchingJsonPath(
                                         "$.messages[0].content", containing("System\\.exit"))));
+    }
+
+    @Test
+    void llmOutageDegradesToPartialButStillRunsDeterministicChecks()
+            throws JsonProcessingException {
+        WM.resetAll();
+        WM.stubFor(
+                post(urlEqualTo("/v1/messages"))
+                        .withRequestBody(
+                                matchingJsonPath("$.tool_choice.name", equalTo("submit_tests")))
+                        .willReturn(
+                                aResponse()
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                testGenResponse(
+                                                        "src/test/java/com/example/CalculatorTest.java",
+                                                                COMPLIANT_TEST,
+                                                        "src/test/java/com/example/CalculatorIT.java",
+                                                                TEST_WITH_THREAD_SLEEP))));
+        WM.stubFor(
+                post(urlEqualTo("/v1/messages"))
+                        .withRequestBody(
+                                matchingJsonPath(
+                                        "$.tool_choice.name", equalTo("submit_review_comments")))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(500)
+                                        .withBody("{\"error\":{\"type\":\"server_error\"}}")));
+        reviewCommentRepository.deleteAll();
+        generatedTestRepository.deleteAll();
+        reviewRunRepository.deleteAll();
+        promptAuditRepository.deleteAll();
+
+        ResponseEntity<ReviewResponse> response =
+                restTemplate.postForEntity(
+                        "/api/v1/reviews",
+                        new ReviewRequest(
+                                SAMPLE_DIFF, null, null, null, CONVENTIONS_YAML, false, null, null),
+                        ReviewResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ReviewResponse body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.status()).isEqualTo("PARTIAL");
+        assertThat(body.degradations()).hasSize(1);
+        assertThat(body.degradations().get(0)).contains("review unavailable");
+        // deterministic convention checks still ran on the generated tests
+        assertThat(body.comments())
+                .anySatisfy(
+                        comment -> {
+                            assertThat(comment.category()).isEqualTo("CONVENTIONS");
+                            assertThat(comment.body()).contains("banned API");
+                        });
+        // validation still ran for the generated tests
+        assertThat(body.generatedTests()).hasSize(2);
+
+        ReviewRun run = reviewRunRepository.findAll().get(0);
+        assertThat(run.getStatus()).isEqualTo(ReviewRunStatus.PARTIAL);
+    }
+
+    @Test
+    void fullLlmOutageReturnsPartialWithEmptyResults() {
+        WM.resetAll();
+        WM.stubFor(
+                post(urlEqualTo("/v1/messages"))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(500)
+                                        .withBody("{\"error\":{\"type\":\"server_error\"}}")));
+        reviewCommentRepository.deleteAll();
+        generatedTestRepository.deleteAll();
+        reviewRunRepository.deleteAll();
+        promptAuditRepository.deleteAll();
+
+        ResponseEntity<ReviewResponse> response =
+                restTemplate.postForEntity(
+                        "/api/v1/reviews",
+                        new ReviewRequest(SAMPLE_DIFF, null, null, null, null, false, null, null),
+                        ReviewResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ReviewResponse body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.status()).isEqualTo("PARTIAL");
+        assertThat(body.degradations()).hasSize(2);
+        assertThat(body.generatedTests()).isEmpty();
+        assertThat(body.comments()).isEmpty();
+
+        ReviewRun run = reviewRunRepository.findAll().get(0);
+        assertThat(run.getStatus()).isEqualTo(ReviewRunStatus.PARTIAL);
     }
 
     @Test

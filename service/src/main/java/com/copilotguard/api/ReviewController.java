@@ -11,6 +11,12 @@ import com.copilotguard.domain.ReviewRun;
 import com.copilotguard.domain.ReviewRunRepository;
 import com.copilotguard.metrics.MetricsService;
 import com.copilotguard.service.ReviewService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Locale;
@@ -25,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1")
+@Tag(name = "Reviews", description = "Diff review, validation gate, and audit trail")
 public class ReviewController {
 
     private final ReviewService reviewService;
@@ -50,12 +57,46 @@ public class ReviewController {
     }
 
     @PostMapping("/reviews")
-    public ResponseEntity<ReviewResponse> createReview(@Valid @RequestBody ReviewRequest request) {
+    @Operation(
+            summary = "Run a review",
+            description =
+                    "Accepts a raw unified diff or a GitHub PR reference. Redacts secrets, "
+                            + "generates tests and review comments with the LLM, validates generated tests in Docker, "
+                            + "enforces repository conventions, and persists the audit trail. "
+                            + "Only PASSING tests are returned as accepted output.")
+    @ApiResponse(responseCode = "201", description = "Review completed (SUCCEEDED or PARTIAL)")
+    @ApiResponse(responseCode = "400", description = "Invalid request or unparseable diff")
+    @ApiResponse(responseCode = "422", description = "Blocker secret found or cost budget exceeded")
+    @ApiResponse(responseCode = "429", description = "Rate limit exceeded")
+    @ApiResponse(responseCode = "502", description = "Upstream failure (LLM, GitHub, validation)")
+    public ResponseEntity<ReviewResponse> createReview(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                            description = "Review request",
+                            content =
+                                    @Content(
+                                            examples =
+                                                    @ExampleObject(
+                                                            value =
+                                                                    "{\"diff\": \"diff --git a/A.java b/A.java\\n"
+                                                                            + "--- a/A.java\\n+++ b/A.java\\n"
+                                                                            + "@@ -1 +1 @@\\n-x\\n+y\", "
+                                                                            + "\"allowRedactedSend\": false}")))
+                    @Valid
+                    @RequestBody
+                    ReviewRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(reviewService.createReview(request));
     }
 
     @GetMapping("/reviews/{id}/audit")
-    public ResponseEntity<AuditTrailResponse> getAuditTrail(@PathVariable long id) {
+    @Operation(
+            summary = "Read the audit trail for a run",
+            description =
+                    "Returns the immutable audit trail: redacted prompts, raw responses, "
+                            + "template and model ids, redaction hits, and per-test validation verdicts.")
+    @ApiResponse(responseCode = "200", description = "Audit trail")
+    @ApiResponse(responseCode = "404", description = "Run not found")
+    public ResponseEntity<AuditTrailResponse> getAuditTrail(
+            @Parameter(description = "Review run id", example = "42") @PathVariable long id) {
         ReviewRun run =
                 reviewRunRepository.findById(id).orElseThrow(() -> new RunNotFoundException(id));
         List<PromptAudit> audits = promptAuditRepository.findByRunId(String.valueOf(id));
@@ -78,7 +119,8 @@ public class ReviewController {
                                                         a.getTokensIn(),
                                                         a.getTokensOut(),
                                                         a.getRedactionHits(),
-                                                        a.getTimestamp()))
+                                                        a.getTimestamp(),
+                                                        a.getCorrelationId()))
                                 .toList(),
                         tests.stream()
                                 .map(
@@ -92,10 +134,24 @@ public class ReviewController {
     }
 
     @PostMapping("/reviews/{id}/comments/{commentId}/verdict")
+    @Operation(
+            summary = "Record the human verdict on a comment",
+            description = "Accepts ACCEPT or REJECT. Verdicts feed the human-override metrics.")
+    @ApiResponse(responseCode = "200", description = "Verdict recorded")
+    @ApiResponse(responseCode = "400", description = "Invalid verdict value")
+    @ApiResponse(responseCode = "404", description = "Run or comment not found")
     public ResponseEntity<ReviewResponse.CommentSummary> recordVerdict(
-            @PathVariable long id,
-            @PathVariable long commentId,
-            @RequestBody VerdictRequest request) {
+            @Parameter(description = "Review run id", example = "42") @PathVariable long id,
+            @Parameter(description = "Comment id", example = "21") @PathVariable long commentId,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                            description = "Verdict",
+                            content =
+                                    @Content(
+                                            examples =
+                                                    @ExampleObject(
+                                                            value = "{\"verdict\": \"REJECT\"}")))
+                    @RequestBody
+                    VerdictRequest request) {
         ReviewComment comment =
                 reviewCommentRepository
                         .findById(commentId)

@@ -122,15 +122,43 @@ Sample response (abridged):
 The harness in `eval/` scores three prompt variants per task (baseline, few-shot,
 chain-of-thought-with-rubric) across 16 fixture diffs (4 planted defects: off-by-one,
 null dereference, missing auth, SQL injection; 4 clean diffs for false positives).
-Results from the committed run (`eval/results/20260916T032858Z.*`, produced through the
-real service with the deterministic model stub `eval/mock_anthropic.py` - rerun with a
+Results from the latest committed run (`eval/results/20260916T145510Z.*`, produced through
+the real service with the deterministic model stub `eval/mock_anthropic.py` - rerun with a
 real `ANTHROPIC_API_KEY` for production numbers):
 
 | variant | pass rate | defect recall | false-positive rate | cost per review | mean latency |
 | --- | --- | --- | --- | --- | --- |
-| baseline | 0.875 | 0.500 | 1.000 | $0.0228 | 2.81 s |
-| few_shot | 0.875 | 0.750 | n/a | $0.0228 | 2.74 s |
-| cot_rubric | 0.875 | 1.000 | n/a | $0.0228 | 2.81 s |
+| baseline | 0.875 | 0.500 | 1.000 | $0.0228 | 3.05 s |
+| few_shot | 0.875 | 0.750 | n/a | $0.0228 | 2.94 s |
+| cot_rubric | 0.875 | 1.000 | n/a | $0.0228 | 2.95 s |
+
+## Performance
+
+Load-tested with k6 (`perf/k6-review.js`) against the full pipeline with the Anthropic API
+stubbed, 5 VUs for 60s, 51 requests, 0 failures
+(`perf/results/20260916T145121Z-summary.json`):
+
+| metric | value |
+| --- | --- |
+| p95 latency | 7.92 s |
+| p50 latency | 6.30 s |
+| throughput | 0.79 req/s |
+
+Latency is dominated by the Docker validation gate (compile + two JUnit runs per test
+file); the LLM call itself is ~50ms against the stub.
+
+## Operational hardening
+
+- **API-key auth** on write endpoints (`X-API-Key`, enabled when `COPILOTGUARD_API_KEY`
+  is set), **Bucket4j rate limiting** per key/IP, and a **per-run USD cost ceiling**
+  (`copilotguard.cost.max-usd-per-run`) that aborts runs over budget. See `SECURITY.md`
+  for the full threat model.
+- **Structured JSON logging** (logstash encoder) with a correlation id propagated from
+  the request (`X-Correlation-Id`) into every log line, the response header, and the
+  audit documents.
+- **Graceful degradation**: if the Anthropic API is unavailable, the run still completes
+  with the deterministic convention checks and is marked `PARTIAL` instead of failing.
+- **OpenAPI 3** via springdoc at `/swagger-ui` with examples on every endpoint.
 
 ## Repository
 

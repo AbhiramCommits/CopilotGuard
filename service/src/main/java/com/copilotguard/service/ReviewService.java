@@ -11,6 +11,8 @@ import com.copilotguard.conventions.ConventionViolation;
 import com.copilotguard.conventions.ConventionsLoader;
 import com.copilotguard.conventions.ConventionsValidator;
 import com.copilotguard.conventions.CopilotGuardConventions;
+import com.copilotguard.cost.CostGuard;
+import com.copilotguard.cost.CostLimitExceededException;
 import com.copilotguard.diff.DiffRenderer;
 import com.copilotguard.diff.FilePatch;
 import com.copilotguard.diff.UnifiedDiffParser;
@@ -29,6 +31,7 @@ import com.copilotguard.domain.ValidationStatus;
 import com.copilotguard.github.GitHubClient;
 import com.copilotguard.llm.GeneratedTestFile;
 import com.copilotguard.llm.LlmClient;
+import com.copilotguard.llm.LlmException;
 import com.copilotguard.llm.ReviewCommentSuggestion;
 import com.copilotguard.llm.ReviewGenerationResult;
 import com.copilotguard.llm.TestGenerationResult;
@@ -78,6 +81,7 @@ public class ReviewService {
     private final TestValidator testValidator;
     private final GitHubWorkspaceProvider gitHubWorkspaceProvider;
     private final SyntheticWorkspaceProvider syntheticWorkspaceProvider;
+    private final CostGuard costGuard;
     private final MeterRegistry meterRegistry;
     private final Yaml yaml = new Yaml();
 
@@ -98,6 +102,7 @@ public class ReviewService {
             TestValidator testValidator,
             GitHubWorkspaceProvider gitHubWorkspaceProvider,
             SyntheticWorkspaceProvider syntheticWorkspaceProvider,
+            CostGuard costGuard,
             MeterRegistry meterRegistry) {
         this.reviewRunRepository = reviewRunRepository;
         this.generatedTestRepository = generatedTestRepository;
@@ -115,6 +120,7 @@ public class ReviewService {
         this.testValidator = testValidator;
         this.gitHubWorkspaceProvider = gitHubWorkspaceProvider;
         this.syntheticWorkspaceProvider = syntheticWorkspaceProvider;
+        this.costGuard = costGuard;
         this.meterRegistry = meterRegistry;
     }
 
@@ -143,6 +149,7 @@ public class ReviewService {
         reviewRunRepository.save(run);
 
         Path workspace = null;
+        List<String> degradations = new ArrayList<>();
         try {
             RedactionResult redaction = promptRedactor.redact(source.diff());
             if (redaction.hasBlocker() && !request.allowRedactedSend()) {
@@ -166,52 +173,70 @@ public class ReviewService {
                             "diff", diffRenderer.render(diffParser.parse(redaction.redacted())),
                             "conventions", conventionsToText(conventions));
 
+            BigDecimal spent = BigDecimal.ZERO;
+            TestGenerationResult testResult = null;
+            ReviewGenerationResult reviewResult = null;
+
             String testPrompt = promptRenderer.render(testTemplate, context);
-            TestGenerationResult testResult = llmClient.generateTests(testPrompt);
+            try {
+                testResult = llmClient.generateTests(testPrompt);
+                spent = spent.add(testResult.usage().costUsd());
+                costGuard.verifyWithinBudget(spent);
+                auditService.record(
+                        run,
+                        testTemplate,
+                        testPrompt,
+                        testResult.rawResponse(),
+                        testResult.model(),
+                        testResult.latencyMs(),
+                        testResult.usage(),
+                        redaction.hits());
+            } catch (LlmException ex) {
+                degradations.add("test generation unavailable: " + ex.getMessage());
+            }
+
             String reviewPrompt = promptRenderer.render(reviewTemplate, context);
-            ReviewGenerationResult reviewResult = llmClient.reviewDiff(reviewPrompt);
+            try {
+                costGuard.verifyWithinBudget(spent);
+                reviewResult = llmClient.reviewDiff(reviewPrompt);
+                spent = spent.add(reviewResult.usage().costUsd());
+                costGuard.verifyWithinBudget(spent);
+                auditService.record(
+                        run,
+                        reviewTemplate,
+                        reviewPrompt,
+                        reviewResult.rawResponse(),
+                        reviewResult.model(),
+                        reviewResult.latencyMs(),
+                        reviewResult.usage(),
+                        redaction.hits());
+            } catch (LlmException ex) {
+                degradations.add("review unavailable: " + ex.getMessage());
+            }
 
-            workspace = prepareWorkspace(source);
+            List<GeneratedTestFile> files = testResult != null ? testResult.files() : List.of();
+            workspace = files.isEmpty() ? null : prepareWorkspace(source);
             List<TestValidationResult> validationResults =
-                    testValidator.validate(new ValidationRequest(workspace, testResult.files()));
-
+                    workspace == null
+                            ? List.of()
+                            : testValidator.validate(new ValidationRequest(workspace, files));
             List<GeneratedTest> tests = persistTests(run, testResult, validationResults);
             List<ReviewComment> comments =
                     persistComments(
-                            run,
-                            reviewResult,
-                            conventionsValidator.validate(testResult.files(), conventions));
+                            run, reviewResult, conventionsValidator.validate(files, conventions));
 
-            auditService.record(
-                    run,
-                    testTemplate,
-                    testPrompt,
-                    testResult.rawResponse(),
-                    testResult.model(),
-                    testResult.latencyMs(),
-                    testResult.usage(),
-                    redaction.hits());
-            auditService.record(
-                    run,
-                    reviewTemplate,
-                    reviewPrompt,
-                    reviewResult.rawResponse(),
-                    reviewResult.model(),
-                    reviewResult.latencyMs(),
-                    reviewResult.usage(),
-                    redaction.hits());
-
-            long tokensIn = (long) testResult.usage().tokensIn() + reviewResult.usage().tokensIn();
-            long tokensOut =
-                    (long) testResult.usage().tokensOut() + reviewResult.usage().tokensOut();
-            BigDecimal cost = testResult.usage().costUsd().add(reviewResult.usage().costUsd());
-            run.setTokenInput(tokensIn);
-            run.setTokenOutput(tokensOut);
-            run.setCostUsd(cost);
-            run.setStatus(ReviewRunStatus.SUCCEEDED);
+            run.setTokenInput(tokensIn(testResult, reviewResult));
+            run.setTokenOutput(tokensOut(testResult, reviewResult));
+            run.setCostUsd(spent);
+            run.setStatus(
+                    degradations.isEmpty() ? ReviewRunStatus.SUCCEEDED : ReviewRunStatus.PARTIAL);
             reviewRunRepository.save(run);
             meterRegistry.counter("copilotguard.reviews.succeeded").increment();
-            return toResponse(run, tests, comments, testResult.files());
+            return toResponse(run, tests, comments, files, degradations);
+        } catch (CostLimitExceededException ex) {
+            failRun(run);
+            meterRegistry.counter("copilotguard.reviews.failed").increment();
+            throw ex;
         } catch (RuntimeException ex) {
             failRun(run);
             meterRegistry.counter("copilotguard.reviews.failed").increment();
@@ -226,6 +251,18 @@ public class ReviewService {
     private void failRun(ReviewRun run) {
         run.setStatus(ReviewRunStatus.FAILED);
         reviewRunRepository.save(run);
+    }
+
+    private static long tokensIn(
+            TestGenerationResult testResult, ReviewGenerationResult reviewResult) {
+        return (long) (testResult == null ? 0 : testResult.usage().tokensIn())
+                + (reviewResult == null ? 0 : reviewResult.usage().tokensIn());
+    }
+
+    private static long tokensOut(
+            TestGenerationResult testResult, ReviewGenerationResult reviewResult) {
+        return (long) (testResult == null ? 0 : testResult.usage().tokensOut())
+                + (reviewResult == null ? 0 : reviewResult.usage().tokensOut());
     }
 
     private Path prepareWorkspace(DiffSource source) {
@@ -271,6 +308,9 @@ public class ReviewService {
             ReviewRun run,
             TestGenerationResult result,
             List<TestValidationResult> validationResults) {
+        if (result == null) {
+            return List.of();
+        }
         Map<String, TestValidationResult> byPath =
                 validationResults.stream()
                         .collect(
@@ -317,20 +357,22 @@ public class ReviewService {
     private List<ReviewComment> persistComments(
             ReviewRun run, ReviewGenerationResult result, List<ConventionViolation> violations) {
         List<ReviewComment> saved = new ArrayList<>();
-        for (ReviewCommentSuggestion suggestion : result.comments()) {
-            ReviewComment comment = new ReviewComment();
-            comment.setReviewRunId(run.getId());
-            comment.setFilePath(suggestion.file());
-            comment.setLine(suggestion.line());
-            comment.setSeverity(suggestion.severity());
-            comment.setCategory(suggestion.category());
-            String body = suggestion.body();
-            if (suggestion.suggestedFix() != null && !suggestion.suggestedFix().isBlank()) {
-                body = body + "\n\nSuggested fix: " + suggestion.suggestedFix();
+        if (result != null) {
+            for (ReviewCommentSuggestion suggestion : result.comments()) {
+                ReviewComment comment = new ReviewComment();
+                comment.setReviewRunId(run.getId());
+                comment.setFilePath(suggestion.file());
+                comment.setLine(suggestion.line());
+                comment.setSeverity(suggestion.severity());
+                comment.setCategory(suggestion.category());
+                String body = suggestion.body();
+                if (suggestion.suggestedFix() != null && !suggestion.suggestedFix().isBlank()) {
+                    body = body + "\n\nSuggested fix: " + suggestion.suggestedFix();
+                }
+                comment.setBody(body);
+                comment.setHumanVerdict(HumanVerdict.PENDING);
+                saved.add(reviewCommentRepository.save(comment));
             }
-            comment.setBody(body);
-            comment.setHumanVerdict(HumanVerdict.PENDING);
-            saved.add(reviewCommentRepository.save(comment));
         }
         for (ConventionViolation violation : violations) {
             ReviewComment comment = new ReviewComment();
@@ -359,7 +401,8 @@ public class ReviewService {
             ReviewRun run,
             List<GeneratedTest> tests,
             List<ReviewComment> comments,
-            List<GeneratedTestFile> generatedFiles) {
+            List<GeneratedTestFile> generatedFiles,
+            List<String> degradations) {
         Map<String, String> contentByPath =
                 generatedFiles.stream()
                         .collect(
@@ -401,7 +444,8 @@ public class ReviewService {
                                                 c.getSeverity().name(),
                                                 c.getCategory().name(),
                                                 c.getBody()))
-                        .toList());
+                        .toList(),
+                List.copyOf(degradations));
     }
 
     private static void deleteRecursively(Path dir) {

@@ -13,6 +13,12 @@ spring:
     mongodb:
       uri: ${MONGO_URI:mongodb://localhost:27017/copilotguard}
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui
+  api-docs:
+    path: /v3/api-docs
+
 management:
   endpoints:
     web:
@@ -24,6 +30,7 @@ management:
 
 copilotguard:
   anthropic-api-key: ${ANTHROPIC_API_KEY:}
+  api-key: ${COPILOTGUARD_API_KEY:}
   anthropic:
     base-url: ${ANTHROPIC_BASE_URL:https://api.anthropic.com}
     model: ${ANTHROPIC_MODEL:claude-sonnet-4-20250514}
@@ -46,3 +53,9 @@ copilotguard:
     memory-mb: 512
     cpus: 1.0
     junit-console-jar: /opt/copilotguard/junit-console-standalone.jar
+  rate-limit:
+    capacity: 120
+    refill-tokens: 60
+    refill-period: 60s
+  cost:
+    max-usd-per-run: 1.0

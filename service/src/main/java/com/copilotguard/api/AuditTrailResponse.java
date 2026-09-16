@@ -20,7 +20,8 @@ public record AuditTrailResponse(
             Integer tokensIn,
             Integer tokensOut,
             List<String> redactionHits,
-            Instant timestamp) {}
+            Instant timestamp,
+            String correlationId) {}
 
     public record VerdictEntry(String filePath, String validationStatus, String validationDetail) {}
 }

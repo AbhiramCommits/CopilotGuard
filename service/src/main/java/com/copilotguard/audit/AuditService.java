@@ -1,11 +1,13 @@
 package com.copilotguard.audit;
 
+import com.copilotguard.config.CorrelationIdFilter;
 import com.copilotguard.domain.ReviewRun;
 import com.copilotguard.llm.LlmUsage;
 import com.copilotguard.prompt.PromptTemplate;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -52,6 +54,7 @@ public class AuditService {
                         .tokensOut(usage.tokensOut())
                         .redactionHits(hits)
                         .timestamp(Instant.now())
+                        .correlationId(MDC.get(CorrelationIdFilter.MDC_KEY))
                         .build();
         promptAuditRepository.save(audit);
     }
@@ -70,6 +73,7 @@ public class AuditService {
                         .tokensOut(0)
                         .redactionHits(redaction.hitNames())
                         .timestamp(Instant.now())
+                        .correlationId(MDC.get(CorrelationIdFilter.MDC_KEY))
                         .build();
         promptAuditRepository.save(audit);
     }

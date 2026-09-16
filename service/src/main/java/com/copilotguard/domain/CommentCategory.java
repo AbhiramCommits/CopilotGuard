@@ -6,5 +6,6 @@ public enum CommentCategory {
     PERFORMANCE,
     STYLE,
     TESTING,
-    READABILITY
+    READABILITY,
+    CONVENTIONS
 }

@@ -1,0 +1,11 @@
+templates:
+  - id: generate_tests
+    version: v1
+    purpose: test-gen
+    file: generate_tests/v1.mustache
+    changelog: "Initial test generation template; injects repository conventions and forces tool-call submission."
+  - id: review_diff
+    version: v1
+    purpose: review
+    file: review_diff/v1.mustache
+    changelog: "Initial structured review template; forces tool-call submission with BLOCKER/MAJOR/MINOR severities."

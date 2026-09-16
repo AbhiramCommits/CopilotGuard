@@ -1,0 +1,13 @@
+diff --git a/src/main/java/com/example/Report.java b/src/main/java/com/example/Report.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/Report.java
++++ b/src/main/java/com/example/Report.java
+@@ -8,6 +8,9 @@ public class Report {
+     public String summarize(List<String> items) {
+         StringBuilder out = new StringBuilder();
++        // eval-fixture: f001_off_by_one
++        for (int i = 0; i <= items.size(); i++) {
++            out.append(items.get(i)).append('\n');
++        }
+         return out.toString();
+     }

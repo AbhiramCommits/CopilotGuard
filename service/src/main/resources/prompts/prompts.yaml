@@ -3,9 +3,29 @@ templates:
     version: v1
     purpose: test-gen
     file: generate_tests/v1.mustache
-    changelog: "Initial test generation template; injects repository conventions and forces tool-call submission."
+    changelog: "Baseline test generation template; injects repository conventions and forces tool-call submission."
+  - id: generate_tests_few_shot
+    version: v1
+    purpose: test-gen
+    file: generate_tests_few_shot/v1.mustache
+    changelog: "Few-shot test generation template with a worked example from the repository."
+  - id: generate_tests_cot
+    version: v1
+    purpose: test-gen
+    file: generate_tests_cot/v1.mustache
+    changelog: "Chain-of-thought test generation template with an explicit quality rubric."
   - id: review_diff
     version: v1
     purpose: review
     file: review_diff/v1.mustache
-    changelog: "Initial structured review template; forces tool-call submission with BLOCKER/MAJOR/MINOR severities."
+    changelog: "Baseline structured review template; forces tool-call submission with BLOCKER/MAJOR/MINOR severities."
+  - id: review_diff_few_shot
+    version: v1
+    purpose: review
+    file: review_diff_few_shot/v1.mustache
+    changelog: "Few-shot review template with annotated example comments."
+  - id: review_diff_cot
+    version: v1
+    purpose: review
+    file: review_diff_cot/v1.mustache
+    changelog: "Chain-of-thought review template with severity rubric and self-check step."

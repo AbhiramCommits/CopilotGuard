@@ -1,0 +1,9 @@
+id: f003_missing_auth
+name: "missing auth check on admin endpoint"
+clean: false
+defects:
+  - label: "missing-auth"
+    file: "src/main/java/com/example/AdminController.java"
+    line: 5
+covered_methods:
+  - "deleteUser"

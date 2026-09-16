@@ -1,0 +1,6 @@
+id: f006_config_cache
+name: "config cache layer"
+clean: false
+defects: []
+covered_methods:
+  - "get"

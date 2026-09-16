@@ -1,0 +1,11 @@
+diff --git a/src/main/java/com/example/Cart.java b/src/main/java/com/example/Cart.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/Cart.java
++++ b/src/main/java/com/example/Cart.java
+@@ -4,7 +4,7 @@ public class Cart {
++    // eval-fixture: f013_rename_clean
+-    private int itemCount;
++    private int numberOfItems;
+@@ -12,2 +12,2 @@ public class Cart {
+-    public int getItemCount() { return itemCount; }
++    public int getNumberOfItems() { return numberOfItems; }

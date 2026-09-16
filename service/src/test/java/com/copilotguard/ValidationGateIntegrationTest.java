@@ -196,7 +196,7 @@ class ValidationGateIntegrationTest {
         stubAnthropic();
 
         ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(null, "acme", "widgets", 7, null, false), ReviewResponse.class);
+                new ReviewRequest(null, "acme", "widgets", 7, null, false, null, null), ReviewResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ReviewResponse body = response.getBody();

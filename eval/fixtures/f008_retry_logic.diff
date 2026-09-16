@@ -1,0 +1,12 @@
+diff --git a/src/main/java/com/example/HttpRetry.java b/src/main/java/com/example/HttpRetry.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/HttpRetry.java
++++ b/src/main/java/com/example/HttpRetry.java
+@@ -3,6 +3,9 @@ public class HttpRetry {
+     public Response call(Request request) {
++        // eval-fixture: f008_retry_logic
++        for (int attempt = 0; attempt < 3; attempt++) {
++            if (doCall(request)) return ok();
++        }
+         throw new RetryExhaustedException();
+     }

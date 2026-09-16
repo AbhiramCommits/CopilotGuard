@@ -1,0 +1,10 @@
+diff --git a/src/main/java/com/example/Fmt.java b/src/main/java/com/example/Fmt.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/Fmt.java
++++ b/src/main/java/com/example/Fmt.java
+@@ -3,5 +3,5 @@ public class Fmt {
+-    public int add(int a,int b) {
++    public int add(int a, int b) {
++        // eval-fixture: f016_formatting_clean
+         return a + b;
+     }

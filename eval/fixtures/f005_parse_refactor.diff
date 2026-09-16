@@ -1,0 +1,11 @@
+diff --git a/src/main/java/com/example/Settings.java b/src/main/java/com/example/Settings.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/Settings.java
++++ b/src/main/java/com/example/Settings.java
+@@ -4,5 +4,8 @@ public class Settings {
+     public int readPort() {
++        // eval-fixture: f005_parse_refactor
++        String value = env.get("PORT");
++        return Integer.parseInt(value.trim());
+-        return 8080;
+     }

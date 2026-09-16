@@ -46,6 +46,18 @@ public class ApiExceptionHandler {
                 .body(new ApiError(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
     }
 
+    @ExceptionHandler(CommentNotFoundException.class)
+    public ResponseEntity<ApiError> handleCommentNotFound(CommentNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiError(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidVerdictException.class)
+    public ResponseEntity<ApiError> handleInvalidVerdict(InvalidVerdictException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
+    }
+
     @ExceptionHandler({LlmException.class, GitHubException.class, ValidationException.class})
     public ResponseEntity<ApiError> handleUpstreamFailure(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)

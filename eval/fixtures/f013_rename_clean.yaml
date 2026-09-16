@@ -1,0 +1,6 @@
+id: f013_rename_clean
+name: "pure rename of field and accessor"
+clean: true
+defects: []
+covered_methods:
+  - "getNumberOfItems"

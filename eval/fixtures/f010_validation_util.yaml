@@ -1,0 +1,6 @@
+id: f010_validation_util
+name: "email validation helper"
+clean: false
+defects: []
+covered_methods:
+  - "isValid"

@@ -10,7 +10,9 @@ public record ReviewRequest(
         String repo,
         Integer prNumber,
         String conventions,
-        boolean allowRedactedSend) {
+        boolean allowRedactedSend,
+        String testPromptTemplateId,
+        String reviewPromptTemplateId) {
 
     @AssertTrue(message = "provide either 'diff' or {owner, repo, prNumber}")
     @JsonIgnore

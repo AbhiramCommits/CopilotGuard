@@ -1,0 +1,6 @@
+id: f005_parse_refactor
+name: "port parsing from environment"
+clean: false
+defects: []
+covered_methods:
+  - "readPort"

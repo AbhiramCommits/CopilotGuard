@@ -1,0 +1,13 @@
+diff --git a/src/main/java/com/example/RateLimiter.java b/src/main/java/com/example/RateLimiter.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/RateLimiter.java
++++ b/src/main/java/com/example/RateLimiter.java
+@@ -6,6 +6,10 @@ public class RateLimiter {
+     public boolean allow(String clientId) {
++        // eval-fixture: f011_rate_limit
++        long now = clock.millis();
++        long windowStart = now - WINDOW_MS;
++        long count = store.countSince(clientId, windowStart);
++        return count < MAX_REQUESTS;
+-        return true;
+     }

@@ -23,6 +23,11 @@ class PromptTemplateRegistryTest {
         PromptTemplate review = registry.latest("review_diff");
         assertThat(review.purpose()).isEqualTo(PromptPurpose.REVIEW);
         assertThat(registry.get("review_diff", "v1").content()).contains("BLOCKER");
+
+        assertThat(registry.latest("generate_tests_few_shot").purpose()).isEqualTo(PromptPurpose.TEST_GEN);
+        assertThat(registry.latest("generate_tests_cot").purpose()).isEqualTo(PromptPurpose.TEST_GEN);
+        assertThat(registry.latest("review_diff_few_shot").purpose()).isEqualTo(PromptPurpose.REVIEW);
+        assertThat(registry.latest("review_diff_cot").purpose()).isEqualTo(PromptPurpose.REVIEW);
     }
 
     @Test

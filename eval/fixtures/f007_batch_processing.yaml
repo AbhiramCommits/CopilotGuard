@@ -1,0 +1,6 @@
+id: f007_batch_processing
+name: "batch processing loop"
+clean: false
+defects: []
+covered_methods:
+  - "process"

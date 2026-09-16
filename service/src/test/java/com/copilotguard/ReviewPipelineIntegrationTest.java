@@ -3,12 +3,14 @@ package com.copilotguard;
 import com.copilotguard.api.AuditTrailResponse;
 import com.copilotguard.api.ReviewRequest;
 import com.copilotguard.api.ReviewResponse;
+import com.copilotguard.api.VerdictRequest;
 import com.copilotguard.audit.PromptAudit;
 import com.copilotguard.audit.PromptAuditRepository;
 import com.copilotguard.domain.CommentCategory;
 import com.copilotguard.domain.CompileStatus;
 import com.copilotguard.domain.GeneratedTest;
 import com.copilotguard.domain.GeneratedTestRepository;
+import com.copilotguard.domain.HumanVerdict;
 import com.copilotguard.domain.PassStatus;
 import com.copilotguard.domain.ReviewComment;
 import com.copilotguard.domain.ReviewCommentRepository;
@@ -17,6 +19,7 @@ import com.copilotguard.domain.ReviewRunRepository;
 import com.copilotguard.domain.ReviewRunStatus;
 import com.copilotguard.domain.Severity;
 import com.copilotguard.domain.ValidationStatus;
+import com.copilotguard.metrics.MetricsSummary;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -25,6 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -60,6 +64,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureObservability(tracing = false)
 @Testcontainers
 class ReviewPipelineIntegrationTest {
 
@@ -210,7 +215,7 @@ class ReviewPipelineIntegrationTest {
     @Test
     void rawDiffHappyPathPersistsEverythingAndRejectsUnvalidatedTests() {
         ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(SAMPLE_DIFF, null, null, null, CONVENTIONS_YAML, false), ReviewResponse.class);
+                new ReviewRequest(SAMPLE_DIFF, null, null, null, CONVENTIONS_YAML, false, null, null), ReviewResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ReviewResponse body = response.getBody();
@@ -279,7 +284,7 @@ class ReviewPipelineIntegrationTest {
     @Test
     void auditEndpointReturnsTrailAndVerdicts() {
         restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(SAMPLE_DIFF, null, null, null, null, false), ReviewResponse.class);
+                new ReviewRequest(SAMPLE_DIFF, null, null, null, null, false, null, null), ReviewResponse.class);
 
         long runId = reviewRunRepository.findAll().get(0).getId();
         ResponseEntity<AuditTrailResponse> auditResponse =
@@ -311,7 +316,7 @@ class ReviewPipelineIntegrationTest {
     @Test
     void blockerSecretFailsRunUnlessAllowRedactedSend() {
         ResponseEntity<String> blocked = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(DIFF_WITH_AWS_KEY, null, null, null, null, false), String.class);
+                new ReviewRequest(DIFF_WITH_AWS_KEY, null, null, null, null, false, null, null), String.class);
 
         assertThat(blocked.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(blocked.getBody()).contains("aws_key", "allowRedactedSend");
@@ -332,7 +337,7 @@ class ReviewPipelineIntegrationTest {
     @Test
     void blockerSecretIsRedactedAndSentWhenAllowed() {
         ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(DIFF_WITH_AWS_KEY, null, null, null, null, true), ReviewResponse.class);
+                new ReviewRequest(DIFF_WITH_AWS_KEY, null, null, null, null, true, null, null), ReviewResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ReviewResponse body = response.getBody();
@@ -385,7 +390,7 @@ class ReviewPipelineIntegrationTest {
         promptAuditRepository.deleteAll();
 
         ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(SAMPLE_DIFF, null, null, null, null, false), ReviewResponse.class);
+                new ReviewRequest(SAMPLE_DIFF, null, null, null, null, false, null, null), ReviewResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
@@ -433,7 +438,7 @@ class ReviewPipelineIntegrationTest {
         promptAuditRepository.deleteAll();
 
         ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(null, "acme", "widgets", 7, null, false), ReviewResponse.class);
+                new ReviewRequest(null, "acme", "widgets", 7, null, false, null, null), ReviewResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ReviewResponse body = response.getBody();
@@ -469,10 +474,71 @@ class ReviewPipelineIntegrationTest {
     @Test
     void rejectsRequestWithoutDiffOrPrReference() {
         ResponseEntity<String> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(null, null, null, null, null, false), String.class);
+                new ReviewRequest(null, null, null, null, null, false, null, null), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).contains("provide either 'diff' or");
+    }
+
+    @Test
+    void verdictEndpointFeedsMetricsSummaryAndPrometheus() {
+        ResponseEntity<ReviewResponse> review = restTemplate.postForEntity("/api/v1/reviews",
+                new ReviewRequest(SAMPLE_DIFF, null, null, null, CONVENTIONS_YAML, false, null, null),
+                ReviewResponse.class);
+        assertThat(review.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ReviewResponse body = review.getBody();
+        assertThat(body).isNotNull();
+        ReviewResponse.CommentSummary bugComment = body.comments().stream()
+                .filter(comment -> "BUG".equals(comment.category()))
+                .findFirst()
+                .orElseThrow();
+
+        ResponseEntity<ReviewResponse.CommentSummary> verdict = restTemplate.postForEntity(
+                "/api/v1/reviews/" + body.runId() + "/comments/" + bugComment.id() + "/verdict",
+                new VerdictRequest("REJECT"), ReviewResponse.CommentSummary.class);
+        assertThat(verdict.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ReviewComment persisted = reviewCommentRepository.findById(bugComment.id()).orElseThrow();
+        assertThat(persisted.getHumanVerdict()).isEqualTo(HumanVerdict.REJECTED);
+
+        ResponseEntity<MetricsSummary> summaryResponse =
+                restTemplate.getForEntity("/api/v1/metrics/summary", MetricsSummary.class);
+        assertThat(summaryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        MetricsSummary metrics = summaryResponse.getBody();
+        assertThat(metrics).isNotNull();
+        assertThat(metrics.generatedTestPassRate()).isEqualTo(0.5);
+        assertThat(metrics.humanOverrideRate()).isEqualTo(1.0 / 3.0);
+        assertThat(metrics.meanTokenCostPerReview()).isGreaterThan(0);
+        assertThat(metrics.rejectionReasons()).anySatisfy(reason -> {
+            assertThat(reason.category()).isEqualTo("BUG");
+            assertThat(reason.severity()).isEqualTo("BLOCKER");
+            assertThat(reason.count()).isEqualTo(1);
+        });
+
+        ResponseEntity<String> prometheus = restTemplate.getForEntity("/actuator/prometheus", String.class);
+        assertThat(prometheus.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(prometheus.getBody())
+                .contains("copilotguard_tests_pass_rate")
+                .contains("copilotguard_reviews_mean_cost_usd")
+                .contains("copilotguard_comments_override_rate")
+                .contains("copilotguard_comments_rejected_total");
+    }
+
+    @Test
+    void verdictEndpointValidatesCommentAndVerdict() throws Exception {
+        ResponseEntity<ReviewResponse> review = restTemplate.postForEntity("/api/v1/reviews",
+                new ReviewRequest(SAMPLE_DIFF, null, null, null, null, false, null, null), ReviewResponse.class);
+        long commentId = review.getBody().comments().get(0).id();
+
+        ResponseEntity<String> notFound = restTemplate.postForEntity(
+                "/api/v1/reviews/1/comments/999999/verdict", new VerdictRequest("REJECT"), String.class);
+        assertThat(notFound.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+        ResponseEntity<String> badVerdict = restTemplate.postForEntity(
+                "/api/v1/reviews/" + review.getBody().runId() + "/comments/" + commentId + "/verdict",
+                new VerdictRequest("MAYBE"), String.class);
+        assertThat(badVerdict.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(badVerdict.getBody()).contains("ACCEPT or REJECT");
     }
 
     private static LocalRepo createLocalRepo() throws IOException, InterruptedException {

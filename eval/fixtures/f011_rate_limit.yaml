@@ -1,0 +1,6 @@
+id: f011_rate_limit
+name: "sliding window rate limiter"
+clean: false
+defects: []
+covered_methods:
+  - "allow"

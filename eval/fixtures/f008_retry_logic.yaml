@@ -1,0 +1,6 @@
+id: f008_retry_logic
+name: "retry loop for http calls"
+clean: false
+defects: []
+covered_methods:
+  - "call"

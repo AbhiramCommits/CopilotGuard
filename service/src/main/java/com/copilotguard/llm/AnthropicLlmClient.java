@@ -75,9 +75,6 @@ public class AnthropicLlmClient implements LlmClient {
         for (JsonNode commentNode : commentsNode) {
             comments.add(parseComment(commentNode));
         }
-        if (comments.isEmpty()) {
-            throw new LlmException("model returned no review comments");
-        }
         return new ReviewGenerationResult(List.copyOf(comments), exchange.usage(), exchange.rawRequest(),
                 exchange.rawResponse(), exchange.latencyMs(), exchange.model());
     }

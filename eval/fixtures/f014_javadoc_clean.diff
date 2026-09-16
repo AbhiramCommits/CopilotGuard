@@ -1,0 +1,13 @@
+diff --git a/src/main/java/com/example/DateMath.java b/src/main/java/com/example/DateMath.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/DateMath.java
++++ b/src/main/java/com/example/DateMath.java
+@@ -1,5 +1,9 @@
++/**
++ * Helper for date math. Only formats and parses; no side effects.
++ */
+ public class DateMath {
++    // eval-fixture: f014_javadoc_clean
+     public long daysBetween(LocalDate a, LocalDate b) {
+         return ChronoUnit.DAYS.between(a, b);
+     }

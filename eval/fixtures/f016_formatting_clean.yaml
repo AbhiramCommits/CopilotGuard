@@ -1,0 +1,6 @@
+id: f016_formatting_clean
+name: "whitespace and formatting only"
+clean: true
+defects: []
+covered_methods:
+  - "add"

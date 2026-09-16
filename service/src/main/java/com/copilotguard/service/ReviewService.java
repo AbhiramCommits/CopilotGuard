@@ -122,8 +122,12 @@ public class ReviewService {
         DiffSource source = resolveDiff(request);
         List<FilePatch> patches = diffParser.parse(source.diff());
         CopilotGuardConventions conventions = resolveConventions(request, source);
-        PromptTemplate testTemplate = templateRegistry.latest("generate_tests");
-        PromptTemplate reviewTemplate = templateRegistry.latest("review_diff");
+        PromptTemplate testTemplate = templateRegistry.latest(StringUtils.hasText(request.testPromptTemplateId())
+                ? request.testPromptTemplateId()
+                : "generate_tests");
+        PromptTemplate reviewTemplate = templateRegistry.latest(StringUtils.hasText(request.reviewPromptTemplateId())
+                ? request.reviewPromptTemplateId()
+                : "review_diff");
 
         ReviewRun run = new ReviewRun();
         run.setRepo(source.repo());

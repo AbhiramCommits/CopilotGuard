@@ -1,0 +1,12 @@
+diff --git a/src/main/java/com/example/AuditLogger.java b/src/main/java/com/example/AuditLogger.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/AuditLogger.java
++++ b/src/main/java/com/example/AuditLogger.java
+@@ -7,6 +7,9 @@ public class AuditLogger {
+     public void log(String event) {
++        // eval-fixture: f009_logging_mdc
++        MDC.put("event", event);
++        logger.info("event={}", event);
++        MDC.clear();
+         logger.info(event);
+     }

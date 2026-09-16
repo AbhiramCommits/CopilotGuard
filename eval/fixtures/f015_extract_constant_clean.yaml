@@ -1,0 +1,6 @@
+id: f015_extract_constant_clean
+name: "constant extraction"
+clean: true
+defects: []
+covered_methods:
+  - "max"

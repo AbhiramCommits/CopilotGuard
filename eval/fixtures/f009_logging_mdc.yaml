@@ -1,0 +1,6 @@
+id: f009_logging_mdc
+name: "MDC enrichment in audit logger"
+clean: false
+defects: []
+covered_methods:
+  - "log"

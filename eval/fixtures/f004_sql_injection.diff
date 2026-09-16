@@ -1,0 +1,11 @@
+diff --git a/src/main/java/com/example/UserRepository.java b/src/main/java/com/example/UserRepository.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/UserRepository.java
++++ b/src/main/java/com/example/UserRepository.java
+@@ -10,5 +10,8 @@ public class UserRepository {
+     public User findByIdRaw(String userId) {
++        // eval-fixture: f004_sql_injection
++        String sql = "SELECT * FROM users WHERE id = '" + userId + "'";
++        return jdbc.queryForObject(sql, User.class);
+-        return null;
+     }

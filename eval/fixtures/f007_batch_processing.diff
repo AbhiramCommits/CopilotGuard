@@ -1,0 +1,13 @@
+diff --git a/src/main/java/com/example/BatchProcessor.java b/src/main/java/com/example/BatchProcessor.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/BatchProcessor.java
++++ b/src/main/java/com/example/BatchProcessor.java
+@@ -2,6 +2,8 @@ public class BatchProcessor {
+     public void process(List<Item> items) {
++        // eval-fixture: f007_batch_processing
++        final int batchSize = 100;
++        for (int i = 0; i < items.size(); i += batchSize) {
++            flush(items.subList(i, Math.min(i + batchSize, items.size())));
++        }
+-        flush(items);
+     }

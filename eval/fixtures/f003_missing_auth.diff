@@ -1,0 +1,11 @@
+diff --git a/src/main/java/com/example/AdminController.java b/src/main/java/com/example/AdminController.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/AdminController.java
++++ b/src/main/java/com/example/AdminController.java
+@@ -5,5 +5,9 @@ public class AdminController {
+     @PostMapping("/admin/users/{id}/delete")
++    // eval-fixture: f003_missing_auth
+     public void deleteUser(@PathVariable long id) {
++        userRepository.deleteById(id);
+-        // no-op
+     }

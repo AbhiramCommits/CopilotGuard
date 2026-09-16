@@ -1,0 +1,6 @@
+id: f014_javadoc_clean
+name: "javadoc only"
+clean: true
+defects: []
+covered_methods:
+  - "daysBetween"

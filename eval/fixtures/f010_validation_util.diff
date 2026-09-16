@@ -1,0 +1,11 @@
+diff --git a/src/main/java/com/example/EmailValidator.java b/src/main/java/com/example/EmailValidator.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/EmailValidator.java
++++ b/src/main/java/com/example/EmailValidator.java
+@@ -5,6 +5,9 @@ public class EmailValidator {
+     public boolean isValid(String email) {
++        // eval-fixture: f010_validation_util
++        if (email == null) return false;
++        return email.contains("@") && email.length() > 3;
+-        return true;
+     }

@@ -1,0 +1,9 @@
+id: f002_null_deref
+name: "null dereference on optional manager"
+clean: false
+defects:
+  - label: "null-deref"
+    file: "src/main/java/com/example/EmployeeService.java"
+    line: 5
+covered_methods:
+  - "getManagerName"

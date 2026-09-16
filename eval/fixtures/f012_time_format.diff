@@ -1,0 +1,12 @@
+diff --git a/src/main/java/com/example/TimeFormat.java b/src/main/java/com/example/TimeFormat.java
+index 1111111..2222222 100644
+--- a/src/main/java/com/example/TimeFormat.java
++++ b/src/main/java/com/example/TimeFormat.java
+@@ -8,6 +8,9 @@ public class TimeFormat {
+     public String iso(Instant instant) {
++        // eval-fixture: f012_time_format
++        return DateTimeFormatter.ISO_INSTANT
++            .withZone(ZoneOffset.UTC)
++            .format(instant);
+-        return instant.toString();
+     }

@@ -1,0 +1,6 @@
+id: f012_time_format
+name: "iso instant formatting"
+clean: false
+defects: []
+covered_methods:
+  - "iso"

@@ -1,0 +1,9 @@
+id: f001_off_by_one
+name: "off-by-one loop bound"
+clean: false
+defects:
+  - label: "off-by-one"
+    file: "src/main/java/com/example/Report.java"
+    line: 11
+covered_methods:
+  - "summarize"

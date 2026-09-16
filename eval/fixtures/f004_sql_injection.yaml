@@ -1,0 +1,9 @@
+id: f004_sql_injection
+name: "SQL injection via string concatenation"
+clean: false
+defects:
+  - label: "sql-injection"
+    file: "src/main/java/com/example/UserRepository.java"
+    line: 12
+covered_methods:
+  - "findByIdRaw"

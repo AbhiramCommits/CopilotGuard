@@ -7,4 +7,6 @@ import java.util.List;
 public interface GeneratedTestRepository extends JpaRepository<GeneratedTest, Long> {
 
     List<GeneratedTest> findByReviewRunId(Long reviewRunId);
+
+    long countByValidationStatus(ValidationStatus validationStatus);
 }

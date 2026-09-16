@@ -1,8 +1,8 @@
 package com.copilotguard.audit;
 
-import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
 
 class PromptRedactorTest {
 
@@ -14,11 +14,14 @@ class PromptRedactorTest {
         RedactionResult result = redactor.redact(text);
 
         assertThat(result.redacted()).contains("[REDACTED:AWS_KEY:1]", "[REDACTED:AWS_KEY:2]");
-        assertThat(result.redacted()).doesNotContain("AKIAIOSFODNN7EXAMPLE", "ASIAQWERTYUIOP123456");
-        assertThat(result.hits()).anySatisfy(hit -> {
-            assertThat(hit.name()).isEqualTo("aws_key");
-            assertThat(hit.blocker()).isTrue();
-        });
+        assertThat(result.redacted())
+                .doesNotContain("AKIAIOSFODNN7EXAMPLE", "ASIAQWERTYUIOP123456");
+        assertThat(result.hits())
+                .anySatisfy(
+                        hit -> {
+                            assertThat(hit.name()).isEqualTo("aws_key");
+                            assertThat(hit.blocker()).isTrue();
+                        });
     }
 
     @Test
@@ -31,8 +34,9 @@ class PromptRedactorTest {
 
     @Test
     void redactsPrivateKeyBlocksButNotPublicKeys() {
-        String text = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkq...\n-----END PRIVATE KEY-----\n"
-                + "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZ...\n-----END PUBLIC KEY-----";
+        String text =
+                "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkq...\n-----END PRIVATE KEY-----\n"
+                        + "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZ...\n-----END PUBLIC KEY-----";
         RedactionResult result = redactor.redact(text);
 
         assertThat(result.redacted()).contains("[REDACTED:PRIVATE_KEY:1]");
@@ -42,7 +46,8 @@ class PromptRedactorTest {
 
     @Test
     void redactsJwtsButNotPartialSegments() {
-        String text = "token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c done";
+        String text =
+                "token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c done";
         RedactionResult result = redactor.redact(text);
 
         assertThat(result.redacted()).contains("[REDACTED:JWT:1]");
@@ -61,8 +66,8 @@ class PromptRedactorTest {
 
     @Test
     void redactsConnectionStringsWithCredentialsOnly() {
-        RedactionResult result = redactor.redact(
-                "url: mongodb://admin:hunter2@db.example.com:27017/app");
+        RedactionResult result =
+                redactor.redact("url: mongodb://admin:hunter2@db.example.com:27017/app");
         assertThat(result.redacted()).contains("[REDACTED:CONNECTION_STRING:1]");
         assertThat(result.redacted()).doesNotContain("hunter2");
 
@@ -89,7 +94,8 @@ class PromptRedactorTest {
 
     @Test
     void redactsLuhnValidCardsOnly() {
-        RedactionResult result = redactor.redact("card 4111111111111111 and 4111-1111-1111-1111 stored");
+        RedactionResult result =
+                redactor.redact("card 4111111111111111 and 4111-1111-1111-1111 stored");
         assertThat(result.redacted()).contains("[REDACTED:CARD:1]", "[REDACTED:CARD:2]");
         assertThat(result.redacted()).doesNotContain("4111");
 

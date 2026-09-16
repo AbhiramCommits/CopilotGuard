@@ -12,6 +12,8 @@ import com.copilotguard.domain.ReviewRunRepository;
 import com.copilotguard.metrics.MetricsService;
 import com.copilotguard.service.ReviewService;
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,9 +22,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -35,7 +34,8 @@ public class ReviewController {
     private final ReviewCommentRepository reviewCommentRepository;
     private final MetricsService metricsService;
 
-    public ReviewController(ReviewService reviewService,
+    public ReviewController(
+            ReviewService reviewService,
             ReviewRunRepository reviewRunRepository,
             PromptAuditRepository promptAuditRepository,
             GeneratedTestRepository generatedTestRepository,
@@ -56,43 +56,77 @@ public class ReviewController {
 
     @GetMapping("/reviews/{id}/audit")
     public ResponseEntity<AuditTrailResponse> getAuditTrail(@PathVariable long id) {
-        ReviewRun run = reviewRunRepository.findById(id)
-                .orElseThrow(() -> new RunNotFoundException(id));
+        ReviewRun run =
+                reviewRunRepository.findById(id).orElseThrow(() -> new RunNotFoundException(id));
         List<PromptAudit> audits = promptAuditRepository.findByRunId(String.valueOf(id));
         List<GeneratedTest> tests = generatedTestRepository.findByReviewRunId(id);
-        AuditTrailResponse response = new AuditTrailResponse(
-                run.getId(),
-                run.getStatus().name(),
-                run.getPromptTemplateId(),
-                audits.stream().map(a -> new AuditTrailResponse.AuditEntry(
-                        a.getTemplateId(), a.getTemplateVersion(), a.getRedactedPrompt(), a.getRawResponse(),
-                        a.getModel(), a.getLatencyMs(), a.getTokensIn(), a.getTokensOut(),
-                        a.getRedactionHits(), a.getTimestamp())).toList(),
-                tests.stream().map(t -> new AuditTrailResponse.VerdictEntry(
-                        t.getFilePath(),
-                        t.getValidationStatus().name(),
-                        t.getValidationDetail())).toList());
+        AuditTrailResponse response =
+                new AuditTrailResponse(
+                        run.getId(),
+                        run.getStatus().name(),
+                        run.getPromptTemplateId(),
+                        audits.stream()
+                                .map(
+                                        a ->
+                                                new AuditTrailResponse.AuditEntry(
+                                                        a.getTemplateId(),
+                                                        a.getTemplateVersion(),
+                                                        a.getRedactedPrompt(),
+                                                        a.getRawResponse(),
+                                                        a.getModel(),
+                                                        a.getLatencyMs(),
+                                                        a.getTokensIn(),
+                                                        a.getTokensOut(),
+                                                        a.getRedactionHits(),
+                                                        a.getTimestamp()))
+                                .toList(),
+                        tests.stream()
+                                .map(
+                                        t ->
+                                                new AuditTrailResponse.VerdictEntry(
+                                                        t.getFilePath(),
+                                                        t.getValidationStatus().name(),
+                                                        t.getValidationDetail()))
+                                .toList());
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/reviews/{id}/comments/{commentId}/verdict")
-    public ResponseEntity<ReviewResponse.CommentSummary> recordVerdict(@PathVariable long id,
-            @PathVariable long commentId, @RequestBody VerdictRequest request) {
-        ReviewComment comment = reviewCommentRepository.findById(commentId)
-                .orElseThrow(() -> new CommentNotFoundException("review comment not found: " + commentId));
+    public ResponseEntity<ReviewResponse.CommentSummary> recordVerdict(
+            @PathVariable long id,
+            @PathVariable long commentId,
+            @RequestBody VerdictRequest request) {
+        ReviewComment comment =
+                reviewCommentRepository
+                        .findById(commentId)
+                        .orElseThrow(
+                                () ->
+                                        new CommentNotFoundException(
+                                                "review comment not found: " + commentId));
         if (comment.getReviewRunId() == null || comment.getReviewRunId() != id) {
             throw new CommentNotFoundException("review comment not found: " + commentId);
         }
-        HumanVerdict verdict = switch (request.verdict() == null ? "" : request.verdict().toUpperCase(Locale.ROOT)) {
-            case "ACCEPT" -> HumanVerdict.ACCEPTED;
-            case "REJECT" -> HumanVerdict.REJECTED;
-            default -> throw new InvalidVerdictException(
-                    "verdict must be ACCEPT or REJECT, got: " + request.verdict());
-        };
+        HumanVerdict verdict =
+                switch (request.verdict() == null
+                        ? ""
+                        : request.verdict().toUpperCase(Locale.ROOT)) {
+                    case "ACCEPT" -> HumanVerdict.ACCEPTED;
+                    case "REJECT" -> HumanVerdict.REJECTED;
+                    default ->
+                            throw new InvalidVerdictException(
+                                    "verdict must be ACCEPT or REJECT, got: " + request.verdict());
+                };
         comment.setHumanVerdict(verdict);
         ReviewComment saved = reviewCommentRepository.save(comment);
-        metricsService.recordVerdict(saved.getCategory(), saved.getSeverity(), saved.getHumanVerdict());
-        return ResponseEntity.ok(new ReviewResponse.CommentSummary(saved.getId(), saved.getFilePath(), saved.getLine(),
-                saved.getSeverity().name(), saved.getCategory().name(), saved.getBody()));
+        metricsService.recordVerdict(
+                saved.getCategory(), saved.getSeverity(), saved.getHumanVerdict());
+        return ResponseEntity.ok(
+                new ReviewResponse.CommentSummary(
+                        saved.getId(),
+                        saved.getFilePath(),
+                        saved.getLine(),
+                        saved.getSeverity().name(),
+                        saved.getCategory().name(),
+                        saved.getBody()));
     }
 }

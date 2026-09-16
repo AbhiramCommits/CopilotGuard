@@ -1,8 +1,7 @@
 package com.copilotguard.domain;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface GeneratedTestRepository extends JpaRepository<GeneratedTest, Long> {
 

@@ -1,36 +1,61 @@
 package com.copilotguard.audit;
 
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.stereotype.Component;
 
 @Component
 public class PromptRedactor {
 
     private static final Pattern CARD_PATTERN = Pattern.compile("\\b\\d[0-9 -]{11,18}\\d\\b");
 
-    private static final List<Detector> DETECTORS = List.of(
-            new Detector("private_key", true, Pattern.compile(
-                    "-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", Pattern.DOTALL)),
-            new Detector("anthropic_api_key", true, Pattern.compile("(?i)sk-ant-[A-Za-z0-9_-]{8,}")),
-            new Detector("github_token", true, Pattern.compile(
-                    "(?i)\\b(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{10,}\\b")),
-            new Detector("aws_key", true, Pattern.compile("\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b")),
-            new Detector("jwt", true, Pattern.compile(
-                    "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\b")),
-            new Detector("bearer_token", true, Pattern.compile("(?i)\\bBearer\\s+[A-Za-z0-9._~+/-]+=*")),
-            new Detector("connection_string", true, Pattern.compile(
-                    "(?i)\\b(?:mongodb(?:\\+srv)?|postgres(?:ql)?|mysql|redis|jdbc:[a-z]+)://[^\\s/:]+:[^\\s@/]+@[^\\s]+")),
-            new Detector("password_assignment", true, Pattern.compile(
-                    "(?i)\\b(password|passwd|secret|api[_-]?key)\\s*[:=]\\s*(?!\"?\\[REDACTED:)[^\\s,}]+")),
-            new Detector("email", false, Pattern.compile(
-                    "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b")),
-            new Detector("ssn", false, Pattern.compile("\\b\\d{3}-\\d{2}-\\d{4}\\b"))
-    );
+    private static final List<Detector> DETECTORS =
+            List.of(
+                    new Detector(
+                            "private_key",
+                            true,
+                            Pattern.compile(
+                                    "-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
+                                    Pattern.DOTALL)),
+                    new Detector(
+                            "anthropic_api_key",
+                            true,
+                            Pattern.compile("(?i)sk-ant-[A-Za-z0-9_-]{8,}")),
+                    new Detector(
+                            "github_token",
+                            true,
+                            Pattern.compile(
+                                    "(?i)\\b(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{10,}\\b")),
+                    new Detector(
+                            "aws_key", true, Pattern.compile("\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b")),
+                    new Detector(
+                            "jwt",
+                            true,
+                            Pattern.compile(
+                                    "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\b")),
+                    new Detector(
+                            "bearer_token",
+                            true,
+                            Pattern.compile("(?i)\\bBearer\\s+[A-Za-z0-9._~+/-]+=*")),
+                    new Detector(
+                            "connection_string",
+                            true,
+                            Pattern.compile(
+                                    "(?i)\\b(?:mongodb(?:\\+srv)?|postgres(?:ql)?|mysql|redis|jdbc:[a-z]+)://[^\\s/:]+:[^\\s@/]+@[^\\s]+")),
+                    new Detector(
+                            "password_assignment",
+                            true,
+                            Pattern.compile(
+                                    "(?i)\\b(password|passwd|secret|api[_-]?key)\\s*[:=]\\s*(?!\"?\\[REDACTED:)[^\\s,}]+")),
+                    new Detector(
+                            "email",
+                            false,
+                            Pattern.compile(
+                                    "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b")),
+                    new Detector("ssn", false, Pattern.compile("\\b\\d{3}-\\d{2}-\\d{4}\\b")));
 
     public RedactionResult redact(String text) {
         String redacted = text;
@@ -109,9 +134,7 @@ public class PromptRedactor {
         return sum % 10 == 0;
     }
 
-    private record Detector(String name, boolean blocker, Pattern pattern) {
-    }
+    private record Detector(String name, boolean blocker, Pattern pattern) {}
 
-    private record Outcome(String text, boolean changed) {
-    }
+    private record Outcome(String text, boolean changed) {}
 }

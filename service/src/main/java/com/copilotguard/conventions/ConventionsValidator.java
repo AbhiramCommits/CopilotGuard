@@ -2,26 +2,28 @@ package com.copilotguard.conventions;
 
 import com.copilotguard.domain.Severity;
 import com.copilotguard.llm.GeneratedTestFile;
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.stereotype.Component;
 
 @Component
 public class ConventionsValidator {
 
-    private static final Pattern CLASS_DECL = Pattern.compile(
-            "(?m)^\\s*(?:public\\s+)?(?:final\\s+)?(?:abstract\\s+)?(?:class|interface|enum|record)\\s+([A-Za-z_$][A-Za-z0-9_$]*)");
-    private static final Pattern METHOD_DECL = Pattern.compile(
-            "(?m)^\\s*(?:(?:public|private|protected|static|final|synchronized|abstract|default|native)\\s+)*"
-                    + "(?:[\\w<>\\[\\].?]+\\s+)+(\\w+)\\s*\\([^;{}]*\\)(?:\\s*throws\\s+[\\w.,\\s]+)?\\s*(\\{?)");
+    private static final Pattern CLASS_DECL =
+            Pattern.compile(
+                    "(?m)^\\s*(?:public\\s+)?(?:final\\s+)?(?:abstract\\s+)?(?:class|interface|enum|record)\\s+([A-Za-z_$][A-Za-z0-9_$]*)");
+    private static final Pattern METHOD_DECL =
+            Pattern.compile(
+                    "(?m)^\\s*(?:(?:public|private|protected|static|final|synchronized|abstract|default|native)\\s+)*"
+                            + "(?:[\\w<>\\[\\].?]+\\s+)+(\\w+)\\s*\\([^;{}]*\\)(?:\\s*throws\\s+[\\w.,\\s]+)?\\s*(\\{?)");
     private static final Set<String> NON_METHOD_TOKENS =
             Set.of("if", "for", "while", "switch", "catch", "do", "else", "return");
 
-    public List<ConventionViolation> validate(List<GeneratedTestFile> files, CopilotGuardConventions conventions) {
+    public List<ConventionViolation> validate(
+            List<GeneratedTestFile> files, CopilotGuardConventions conventions) {
         List<ConventionViolation> violations = new ArrayList<>();
         for (GeneratedTestFile file : files) {
             violations.addAll(validateFile(file, conventions));
@@ -29,18 +31,30 @@ public class ConventionsValidator {
         return violations;
     }
 
-    private List<ConventionViolation> validateFile(GeneratedTestFile file, CopilotGuardConventions conventions) {
+    private List<ConventionViolation> validateFile(
+            GeneratedTestFile file, CopilotGuardConventions conventions) {
         List<ConventionViolation> violations = new ArrayList<>();
         String content = file.content();
 
         Matcher classMatcher = CLASS_DECL.matcher(content);
         if (!classMatcher.find()) {
-            violations.add(new ConventionViolation(file.path(), null, Severity.MAJOR,
-                    "no class declaration found in generated test file"));
+            violations.add(
+                    new ConventionViolation(
+                            file.path(),
+                            null,
+                            Severity.MAJOR,
+                            "no class declaration found in generated test file"));
         } else if (!classMatcher.group(1).matches(conventions.testClassNamePattern())) {
-            violations.add(new ConventionViolation(file.path(), null, Severity.MAJOR,
-                    "class name '" + classMatcher.group(1) + "' does not match testClassNamePattern '"
-                            + conventions.testClassNamePattern() + "'"));
+            violations.add(
+                    new ConventionViolation(
+                            file.path(),
+                            null,
+                            Severity.MAJOR,
+                            "class name '"
+                                    + classMatcher.group(1)
+                                    + "' does not match testClassNamePattern '"
+                                    + conventions.testClassNamePattern()
+                                    + "'"));
         }
 
         String[] lines = content.split("\n", -1);
@@ -48,19 +62,28 @@ public class ConventionsValidator {
             Pattern pattern = Pattern.compile(banned);
             for (int i = 0; i < lines.length; i++) {
                 if (pattern.matcher(lines[i]).find()) {
-                    violations.add(new ConventionViolation(file.path(), i + 1, Severity.BLOCKER,
-                            "banned API '" + banned + "' used at line " + (i + 1)));
+                    violations.add(
+                            new ConventionViolation(
+                                    file.path(),
+                                    i + 1,
+                                    Severity.BLOCKER,
+                                    "banned API '" + banned + "' used at line " + (i + 1)));
                 }
             }
         }
 
         for (String annotation : conventions.requiredTestAnnotations()) {
-            String simpleName = annotation.contains(".")
-                    ? annotation.substring(annotation.lastIndexOf('.') + 1)
-                    : annotation;
+            String simpleName =
+                    annotation.contains(".")
+                            ? annotation.substring(annotation.lastIndexOf('.') + 1)
+                            : annotation;
             if (!content.contains("@" + simpleName)) {
-                violations.add(new ConventionViolation(file.path(), null, Severity.MAJOR,
-                        "required test annotation '" + annotation + "' missing"));
+                violations.add(
+                        new ConventionViolation(
+                                file.path(),
+                                null,
+                                Severity.MAJOR,
+                                "required test annotation '" + annotation + "' missing"));
             }
         }
 
@@ -76,9 +99,17 @@ public class ConventionsValidator {
             }
             int length = measureMethodLength(content, brace);
             if (length > conventions.maxMethodLength()) {
-                violations.add(new ConventionViolation(file.path(), lineNumberAt(content, methodMatcher.start()),
-                        Severity.MINOR, "method '" + name + "' is " + length + " lines long, exceeding maxMethodLength "
-                                + conventions.maxMethodLength()));
+                violations.add(
+                        new ConventionViolation(
+                                file.path(),
+                                lineNumberAt(content, methodMatcher.start()),
+                                Severity.MINOR,
+                                "method '"
+                                        + name
+                                        + "' is "
+                                        + length
+                                        + " lines long, exceeding maxMethodLength "
+                                        + conventions.maxMethodLength()));
             }
         }
         return violations;

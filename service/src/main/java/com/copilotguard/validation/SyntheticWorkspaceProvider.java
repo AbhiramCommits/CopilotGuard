@@ -1,10 +1,9 @@
 package com.copilotguard.validation;
 
-import org.springframework.stereotype.Component;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.springframework.stereotype.Component;
 
 @Component
 public class SyntheticWorkspaceProvider implements WorkspaceProvider {

@@ -9,9 +9,8 @@ import com.copilotguard.domain.Severity;
 import com.copilotguard.domain.ValidationStatus;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
+import org.springframework.stereotype.Service;
 
 @Service
 public class PrometheusMetricsService implements MetricsService {
@@ -21,7 +20,8 @@ public class PrometheusMetricsService implements MetricsService {
     private final ReviewRunRepository reviewRunRepository;
     private final ReviewCommentRepository reviewCommentRepository;
 
-    public PrometheusMetricsService(MeterRegistry meterRegistry,
+    public PrometheusMetricsService(
+            MeterRegistry meterRegistry,
             GeneratedTestRepository generatedTestRepository,
             ReviewRunRepository reviewRunRepository,
             ReviewCommentRepository reviewCommentRepository) {
@@ -43,8 +43,14 @@ public class PrometheusMetricsService implements MetricsService {
     @Override
     public void recordVerdict(CommentCategory category, Severity severity, HumanVerdict verdict) {
         if (verdict == HumanVerdict.REJECTED) {
-            meterRegistry.counter("copilotguard.comments.rejected",
-                    "category", category.name(), "severity", severity.name()).increment();
+            meterRegistry
+                    .counter(
+                            "copilotguard.comments.rejected",
+                            "category",
+                            category.name(),
+                            "severity",
+                            severity.name())
+                    .increment();
         }
     }
 
@@ -62,7 +68,8 @@ public class PrometheusMetricsService implements MetricsService {
         if (total == 0) {
             return 0.0;
         }
-        return (double) generatedTestRepository.countByValidationStatus(ValidationStatus.PASSING) / total;
+        return (double) generatedTestRepository.countByValidationStatus(ValidationStatus.PASSING)
+                / total;
     }
 
     private double meanTokenCostPerReview() {
@@ -78,11 +85,15 @@ public class PrometheusMetricsService implements MetricsService {
     }
 
     private List<MetricsSummary.RejectionReason> rejectionReasons() {
-        return reviewCommentRepository.countRejectedByCategoryAndSeverity(HumanVerdict.REJECTED).stream()
-                .map(row -> new MetricsSummary.RejectionReason(
-                        ((CommentCategory) row[0]).name(),
-                        ((Severity) row[1]).name(),
-                        ((Number) row[2]).longValue()))
+        return reviewCommentRepository
+                .countRejectedByCategoryAndSeverity(HumanVerdict.REJECTED)
+                .stream()
+                .map(
+                        row ->
+                                new MetricsSummary.RejectionReason(
+                                        ((CommentCategory) row[0]).name(),
+                                        ((Severity) row[1]).name(),
+                                        ((Number) row[2]).longValue()))
                 .toList();
     }
 }

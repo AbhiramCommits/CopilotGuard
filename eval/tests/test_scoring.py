@@ -85,7 +85,7 @@ RECORDED_CLEAN_RESPONSE = {
             "validationStatus": "PASSING",
             "accepted": True,
             "validationDetail": "tests passed in both runs",
-            "content": "package com.example;\n// covers: getNumberOfItems\nclass CartCoverageTest {\n}",
+            "content": "package com.example;\n// covers: getNumberOfItems\nclass CartCoverageTest {\n}",  # noqa: E501
         }
     ],
     "comments": [

@@ -1,16 +1,16 @@
 package com.copilotguard.diff;
 
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.stereotype.Component;
 
 @Component
 public class UnifiedDiffParser {
 
-    private static final Pattern HUNK_HEADER = Pattern.compile("^@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@");
+    private static final Pattern HUNK_HEADER =
+            Pattern.compile("^@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@");
 
     public List<FilePatch> parse(String diffText) {
         List<FilePatch> patches = new ArrayList<>();
@@ -47,11 +47,12 @@ public class UnifiedDiffParser {
                 if (!matcher.find()) {
                     throw new DiffParseException("malformed hunk header: " + line);
                 }
-                hunk = new HunkBuilder(
-                        Integer.parseInt(matcher.group(1)),
-                        parseIntOrDefault(matcher.group(2), 1),
-                        Integer.parseInt(matcher.group(3)),
-                        parseIntOrDefault(matcher.group(4), 1));
+                hunk =
+                        new HunkBuilder(
+                                Integer.parseInt(matcher.group(1)),
+                                parseIntOrDefault(matcher.group(2), 1),
+                                Integer.parseInt(matcher.group(3)),
+                                parseIntOrDefault(matcher.group(4), 1));
                 current.hunks.add(hunk);
                 oldLine = hunk.oldStart;
                 newLine = hunk.newStart;
@@ -60,14 +61,20 @@ public class UnifiedDiffParser {
             } else if (line.startsWith("\\")) {
                 continue;
             } else if (line.startsWith("+")) {
-                hunk.lines.add(new HunkLine(HunkLine.LineType.ADD, null, newLine, line.substring(1)));
+                hunk.lines.add(
+                        new HunkLine(HunkLine.LineType.ADD, null, newLine, line.substring(1)));
                 newLine++;
             } else if (line.startsWith("-")) {
-                hunk.lines.add(new HunkLine(HunkLine.LineType.REMOVE, oldLine, null, line.substring(1)));
+                hunk.lines.add(
+                        new HunkLine(HunkLine.LineType.REMOVE, oldLine, null, line.substring(1)));
                 oldLine++;
             } else if (line.isEmpty() || line.startsWith(" ")) {
-                hunk.lines.add(new HunkLine(HunkLine.LineType.CONTEXT, oldLine, newLine,
-                        line.isEmpty() ? "" : line.substring(1)));
+                hunk.lines.add(
+                        new HunkLine(
+                                HunkLine.LineType.CONTEXT,
+                                oldLine,
+                                newLine,
+                                line.isEmpty() ? "" : line.substring(1)));
                 oldLine++;
                 newLine++;
             }
@@ -82,9 +89,17 @@ public class UnifiedDiffParser {
     }
 
     private static void finish(List<FilePatch> patches, FilePatchBuilder builder) {
-        List<Hunk> hunks = builder.hunks.stream()
-                .map(h -> new Hunk(h.oldStart, h.oldCount, h.newStart, h.newCount, List.copyOf(h.lines)))
-                .toList();
+        List<Hunk> hunks =
+                builder.hunks.stream()
+                        .map(
+                                h ->
+                                        new Hunk(
+                                                h.oldStart,
+                                                h.oldCount,
+                                                h.newStart,
+                                                h.newCount,
+                                                List.copyOf(h.lines)))
+                        .toList();
         if (!hunks.isEmpty()) {
             patches.add(new FilePatch(builder.oldPath, builder.newPath, hunks));
         }
@@ -116,7 +131,9 @@ public class UnifiedDiffParser {
     }
 
     private static String unquote(String value) {
-        return value.startsWith("\"") && value.endsWith("\"") ? value.substring(1, value.length() - 1) : value;
+        return value.startsWith("\"") && value.endsWith("\"")
+                ? value.substring(1, value.length() - 1)
+                : value;
     }
 
     private static int parseIntOrDefault(String value, int defaultValue) {

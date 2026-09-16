@@ -9,5 +9,4 @@ public record ReviewCommentSuggestion(
         Severity severity,
         CommentCategory category,
         String body,
-        String suggestedFix) {
-}
+        String suggestedFix) {}

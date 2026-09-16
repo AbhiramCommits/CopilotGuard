@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: copilotguard
+  labels:
+    app: copilotguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: copilotguard
+  template:
+    metadata:
+      labels:
+        app: copilotguard
+    spec:
+      containers:
+        - name: copilotguard
+          image: ghcr.io/OWNER/copilotguard:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: copilotguard-secrets
+                  key: postgres-url
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: copilotguard-secrets
+                  key: mongo-uri
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: copilotguard-secrets
+                  key: anthropic-api-key
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: copilotguard-secrets
+                  key: github-token
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: "1"

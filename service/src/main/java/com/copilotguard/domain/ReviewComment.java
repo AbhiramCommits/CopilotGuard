@@ -29,8 +29,7 @@ public class ReviewComment {
     @Column(name = "file_path", nullable = false, length = 512)
     private String filePath;
 
-    @Column
-    private Integer line;
+    @Column private Integer line;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

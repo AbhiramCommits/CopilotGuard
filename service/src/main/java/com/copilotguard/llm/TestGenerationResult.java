@@ -8,5 +8,4 @@ public record TestGenerationResult(
         String rawRequest,
         String rawResponse,
         long latencyMs,
-        String model) {
-}
+        String model) {}

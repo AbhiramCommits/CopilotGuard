@@ -128,7 +128,6 @@ def build_tests(fixture, diff):
 
 
 def build_comments(prompt, diff):
-    fixture = fixture_id(prompt)
     variant = variant_name(prompt)
     lines = parse_diff_lines(diff)
     comments = []

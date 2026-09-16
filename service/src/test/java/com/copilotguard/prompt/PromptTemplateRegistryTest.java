@@ -1,11 +1,10 @@
 package com.copilotguard.prompt;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.core.io.DefaultResourceLoader;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.io.DefaultResourceLoader;
 
 class PromptTemplateRegistryTest {
 
@@ -24,9 +23,12 @@ class PromptTemplateRegistryTest {
         assertThat(review.purpose()).isEqualTo(PromptPurpose.REVIEW);
         assertThat(registry.get("review_diff", "v1").content()).contains("BLOCKER");
 
-        assertThat(registry.latest("generate_tests_few_shot").purpose()).isEqualTo(PromptPurpose.TEST_GEN);
-        assertThat(registry.latest("generate_tests_cot").purpose()).isEqualTo(PromptPurpose.TEST_GEN);
-        assertThat(registry.latest("review_diff_few_shot").purpose()).isEqualTo(PromptPurpose.REVIEW);
+        assertThat(registry.latest("generate_tests_few_shot").purpose())
+                .isEqualTo(PromptPurpose.TEST_GEN);
+        assertThat(registry.latest("generate_tests_cot").purpose())
+                .isEqualTo(PromptPurpose.TEST_GEN);
+        assertThat(registry.latest("review_diff_few_shot").purpose())
+                .isEqualTo(PromptPurpose.REVIEW);
         assertThat(registry.latest("review_diff_cot").purpose()).isEqualTo(PromptPurpose.REVIEW);
     }
 
@@ -35,12 +37,15 @@ class PromptTemplateRegistryTest {
         PromptTemplateRegistry registry = new PromptTemplateRegistry(new DefaultResourceLoader());
         PromptRenderer renderer = new PromptRenderer();
 
-        String rendered = renderer.render(registry.latest("generate_tests"), Map.of(
-                "repo", "acme/widgets",
-                "baseSha", "abc123",
-                "headSha", "def456",
-                "diff", "--- a/Foo.java\n+++ b/Foo.java\n@@ -1 +1 @@\n-x\n+y\n",
-                "conventions", "bannedApis: []\n"));
+        String rendered =
+                renderer.render(
+                        registry.latest("generate_tests"),
+                        Map.of(
+                                "repo", "acme/widgets",
+                                "baseSha", "abc123",
+                                "headSha", "def456",
+                                "diff", "--- a/Foo.java\n+++ b/Foo.java\n@@ -1 +1 @@\n-x\n+y\n",
+                                "conventions", "bannedApis: []\n"));
 
         assertThat(rendered).contains("acme/widgets");
         assertThat(rendered).contains("abc123");

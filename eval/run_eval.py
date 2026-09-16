@@ -21,9 +21,21 @@ from harness.scoring import aggregate, score_response
 from harness.service_client import ServiceClient
 
 VARIANTS = [
-    {"name": "baseline", "test_template": "generate_tests", "review_template": "review_diff"},
-    {"name": "few_shot", "test_template": "generate_tests_few_shot", "review_template": "review_diff_few_shot"},
-    {"name": "cot_rubric", "test_template": "generate_tests_cot", "review_template": "review_diff_cot"},
+    {
+        "name": "baseline",
+        "test_template": "generate_tests",
+        "review_template": "review_diff",
+    },
+    {
+        "name": "few_shot",
+        "test_template": "generate_tests_few_shot",
+        "review_template": "review_diff_few_shot",
+    },
+    {
+        "name": "cot_rubric",
+        "test_template": "generate_tests_cot",
+        "review_template": "review_diff_cot",
+    },
 ]
 
 CONVENTIONS_YAML = """naming:
@@ -54,8 +66,8 @@ def render_markdown(result):
         "",
         f"- generated at: {result['generated_at']}",
         f"- service: {result['base_url']}",
-        f"- model: deterministic local stub (eval/mock_anthropic.py); rerun with a real "
-        f"ANTHROPIC_API_KEY for production numbers",
+        "- model: deterministic local stub (eval/mock_anthropic.py); rerun with a real "
+        "ANTHROPIC_API_KEY for production numbers",
         "",
         "## Summary per variant",
         "",
@@ -72,8 +84,10 @@ def render_markdown(result):
     lines.append("")
     lines.append("## Per-fixture details")
     lines.append("")
-    lines.append("| variant | fixture | error | compile rate | pass rate | recall | coverage | fp comments | "
-                 "tokens in | tokens out | cost (USD) | latency (ms) |")
+    lines.append(
+        "| variant | fixture | error | compile rate | pass rate | recall | coverage | "
+        "fp comments | tokens in | tokens out | cost (USD) | latency (ms) |"
+    )
     lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for row in result["rows"]:
         lines.append(
@@ -138,7 +152,7 @@ def main():
             )
 
     result = {
-        "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "base_url": args.base_url,
         "model": "mock-claude (eval/mock_anthropic.py)",
         "variants": VARIANTS,
@@ -149,7 +163,7 @@ def main():
 
     results_dir = Path(args.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
     json_path = results_dir / f"{timestamp}.json"
     md_path = results_dir / f"{timestamp}.md"
     chart_path = results_dir / f"{timestamp}.png"

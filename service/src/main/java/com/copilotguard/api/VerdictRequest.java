@@ -1,4 +1,3 @@
 package com.copilotguard.api;
 
-public record VerdictRequest(String verdict) {
-}
+public record VerdictRequest(String verdict) {}

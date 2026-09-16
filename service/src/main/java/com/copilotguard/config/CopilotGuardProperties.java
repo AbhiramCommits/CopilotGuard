@@ -1,17 +1,13 @@
 package com.copilotguard.config;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
-
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Map;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "copilotguard")
 public record CopilotGuardProperties(
-        String anthropicApiKey,
-        Anthropic anthropic,
-        Github github,
-        Validation validation) {
+        String anthropicApiKey, Anthropic anthropic, Github github, Validation validation) {
 
     public record Anthropic(
             String baseUrl,
@@ -20,14 +16,11 @@ public record CopilotGuardProperties(
             int maxTokens,
             int maxAttempts,
             Duration timeout,
-            Map<String, ModelPrice> prices) {
-    }
+            Map<String, ModelPrice> prices) {}
 
-    public record ModelPrice(BigDecimal inputPerMTok, BigDecimal outputPerMTok) {
-    }
+    public record ModelPrice(BigDecimal inputPerMTok, BigDecimal outputPerMTok) {}
 
-    public record Github(String baseUrl, String rawBaseUrl, String token) {
-    }
+    public record Github(String baseUrl, String rawBaseUrl, String token) {}
 
     public record Validation(
             String image,
@@ -35,6 +28,5 @@ public record CopilotGuardProperties(
             Duration runTimeout,
             long memoryMb,
             double cpus,
-            String junitConsoleJar) {
-    }
+            String junitConsoleJar) {}
 }

@@ -16,11 +16,20 @@ public record ReviewResponse(
         List<TestSummary> generatedTests,
         List<CommentSummary> comments) {
 
-    public record TestSummary(String filePath, String compileStatus, String passStatus,
-            String validationStatus, boolean accepted, String validationDetail, String content) {
-    }
+    public record TestSummary(
+            String filePath,
+            String compileStatus,
+            String passStatus,
+            String validationStatus,
+            boolean accepted,
+            String validationDetail,
+            String content) {}
 
-    public record CommentSummary(Long id, String filePath, Integer line, String severity, String category,
-            String body) {
-    }
+    public record CommentSummary(
+            Long id,
+            String filePath,
+            Integer line,
+            String severity,
+            String category,
+            String body) {}
 }

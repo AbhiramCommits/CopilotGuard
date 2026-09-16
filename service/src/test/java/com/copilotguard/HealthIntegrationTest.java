@@ -1,5 +1,8 @@
 package com.copilotguard;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,35 +18,27 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class HealthIntegrationTest {
 
-    @Container
-    @ServiceConnection
+    @Container @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"));
 
-    @Container
-    @ServiceConnection
-    static final MongoDBContainer MONGO =
-            new MongoDBContainer(DockerImageName.parse("mongo:7"));
+    @Container @ServiceConnection
+    static final MongoDBContainer MONGO = new MongoDBContainer(DockerImageName.parse("mongo:7"));
 
-    @Autowired
-    TestRestTemplate restTemplate;
+    @Autowired TestRestTemplate restTemplate;
 
     @Test
     void healthEndpointReportsUp() {
-        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                "/api/v1/health",
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {
-                });
+        ResponseEntity<Map<String, Object>> response =
+                restTemplate.exchange(
+                        "/api/v1/health",
+                        HttpMethod.GET,
+                        null,
+                        new ParameterizedTypeReference<>() {});
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();

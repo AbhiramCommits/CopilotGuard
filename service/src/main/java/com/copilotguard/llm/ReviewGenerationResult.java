@@ -8,5 +8,4 @@ public record ReviewGenerationResult(
         String rawRequest,
         String rawResponse,
         long latencyMs,
-        String model) {
-}
+        String model) {}

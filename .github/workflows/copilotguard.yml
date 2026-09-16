@@ -1,0 +1,73 @@
+name: CopilotGuard self-review
+
+# Dogfooding: CopilotGuard reviews its own pull requests.
+# Requires a self-hosted runner labeled `copilotguard` (runs-on: [self-hosted, copilotguard])
+# with access to a deployed CopilotGuard service (COPILOTGUARD_URL secret).
+#
+# The workflow:
+#   1. Computes the PR diff against the base branch.
+#   2. Sends it to the service (redaction chain, structured review, Docker validation).
+#   3. Posts the governance-accepted review comments and the validated (PASSING) test
+#      files back to the PR. Unvalidated output is never posted.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  self-review:
+    runs-on: [self-hosted, copilotguard]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute PR diff
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.ref }}" --depth=1
+          git diff "origin/${{ github.event.pull_request.base.ref }}...HEAD" > /tmp/pr.diff
+          echo "diff lines: $(wc -l < /tmp/pr.diff)"
+
+      - name: Run CopilotGuard review
+        env:
+          COPILOTGUARD_URL: ${{ secrets.COPILOTGUARD_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          python3 - "$COPILOTGUARD_URL" <<'PY'
+          import json
+          import os
+          import sys
+
+          base_url = sys.argv[1].rstrip("/")
+          with open("/tmp/pr.diff") as diff_file:
+              diff = diff_file.read()
+          with open("/tmp/review.json", "w") as out:
+              out.write("")
+          import urllib.request
+
+          payload = {
+              "diff": diff,
+              "allowRedactedSend": False,
+              "testPromptTemplateId": "generate_tests",
+              "reviewPromptTemplateId": "review_diff_cot",
+          }
+          request = urllib.request.Request(
+              f"{base_url}/api/v1/reviews",
+              data=json.dumps(payload).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=600) as response:
+              with open("/tmp/review.json", "wb") as out:
+                  out.write(response.read())
+          print("review completed")
+          PY
+          python3 scripts/post_self_review.py /tmp/review.json

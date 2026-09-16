@@ -6,5 +6,4 @@ public record CopilotGuardConventions(
         String testClassNamePattern,
         List<String> bannedApis,
         List<String> requiredTestAnnotations,
-        int maxMethodLength) {
-}
+        int maxMethodLength) {}

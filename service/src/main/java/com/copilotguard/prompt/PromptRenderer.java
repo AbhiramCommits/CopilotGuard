@@ -2,9 +2,8 @@ package com.copilotguard.prompt;
 
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @Component
 public class PromptRenderer {

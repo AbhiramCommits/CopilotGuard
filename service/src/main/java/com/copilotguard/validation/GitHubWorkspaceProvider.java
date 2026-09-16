@@ -1,12 +1,11 @@
 package com.copilotguard.validation;
 
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 public class GitHubWorkspaceProvider implements WorkspaceProvider {
@@ -42,11 +41,15 @@ public class GitHubWorkspaceProvider implements WorkspaceProvider {
         try {
             if (!process.waitFor(GIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new ValidationException("git command timed out: " + String.join(" ", command));
+                throw new ValidationException(
+                        "git command timed out: " + String.join(" ", command));
             }
             if (process.exitValue() != 0) {
-                throw new ValidationException("git command failed (" + process.exitValue() + "): "
-                        + String.join(" ", command));
+                throw new ValidationException(
+                        "git command failed ("
+                                + process.exitValue()
+                                + "): "
+                                + String.join(" ", command));
             }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -57,13 +60,15 @@ public class GitHubWorkspaceProvider implements WorkspaceProvider {
 
     private static void deleteRecursively(Path dir) {
         try (var paths = Files.walk(dir)) {
-            paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException ignored) {
-                    // best effort cleanup
-                }
-            });
+            paths.sorted(java.util.Comparator.reverseOrder())
+                    .forEach(
+                            path -> {
+                                try {
+                                    Files.deleteIfExists(path);
+                                } catch (IOException ignored) {
+                                    // best effort cleanup
+                                }
+                            });
         } catch (IOException ignored) {
             // best effort cleanup
         }

@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  java-service:
+    name: Java service build, tests, coverage, format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Maven cache enabled)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('service/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: Verify (Testcontainers tests, Spotless format check, JaCoCo 75% gate)
+        working-directory: service
+        run: mvn -B verify
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: service/target/site/jacoco/
+          retention-days: 7
+
+  python-harness:
+    name: Python harness lint and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 (pip cache enabled)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: eval/pyproject.toml
+
+      - name: Install harness with dev extras
+        working-directory: eval
+        run: pip install -e ".[dev]" ruff
+
+      - name: Ruff lint
+        working-directory: eval
+        run: ruff check .
+
+      - name: Pytest (no API key required)
+        working-directory: eval
+        run: pytest -q
+
+  container-scan:
+    name: Image build and Trivy scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build service image
+        run: docker build -t copilotguard-ci:${{ github.sha }} ./service
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: copilotguard-ci:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Upload Trivy SARIF report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif

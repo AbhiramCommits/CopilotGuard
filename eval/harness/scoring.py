@@ -82,7 +82,9 @@ def aggregate(scores):
         "pass_rate": _mean([score["pass_rate"] for score in scores]),
         "recall": _mean([score["recall"] for score in defect_scores]),
         "fp_rate": fp_comments / total_clean_comments if total_clean_comments else None,
-        "coverage": _mean([score["coverage"] for score in scores if score.get("coverage") is not None]),
+        "coverage": _mean(
+            [score["coverage"] for score in scores if score.get("coverage") is not None]
+        ),
         "mean_tokens_in": _mean([score["tokens_in"] for score in scores]),
         "mean_tokens_out": _mean([score["tokens_out"] for score in scores]),
         "mean_cost_usd": _mean([score["cost_usd"] for score in scores]),

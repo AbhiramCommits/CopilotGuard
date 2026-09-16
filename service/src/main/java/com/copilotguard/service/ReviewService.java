@@ -43,10 +43,6 @@ import com.copilotguard.validation.ValidationRequest;
 import com.copilotguard.validation.WorkspaceProvider;
 import com.copilotguard.validation.WorkspaceSpec;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.yaml.snakeyaml.Yaml;
-
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -59,6 +55,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.yaml.snakeyaml.Yaml;
 
 @Service
 public class ReviewService {
@@ -82,7 +81,8 @@ public class ReviewService {
     private final MeterRegistry meterRegistry;
     private final Yaml yaml = new Yaml();
 
-    public ReviewService(ReviewRunRepository reviewRunRepository,
+    public ReviewService(
+            ReviewRunRepository reviewRunRepository,
             GeneratedTestRepository generatedTestRepository,
             ReviewCommentRepository reviewCommentRepository,
             UnifiedDiffParser diffParser,
@@ -122,12 +122,16 @@ public class ReviewService {
         DiffSource source = resolveDiff(request);
         List<FilePatch> patches = diffParser.parse(source.diff());
         CopilotGuardConventions conventions = resolveConventions(request, source);
-        PromptTemplate testTemplate = templateRegistry.latest(StringUtils.hasText(request.testPromptTemplateId())
-                ? request.testPromptTemplateId()
-                : "generate_tests");
-        PromptTemplate reviewTemplate = templateRegistry.latest(StringUtils.hasText(request.reviewPromptTemplateId())
-                ? request.reviewPromptTemplateId()
-                : "review_diff");
+        PromptTemplate testTemplate =
+                templateRegistry.latest(
+                        StringUtils.hasText(request.testPromptTemplateId())
+                                ? request.testPromptTemplateId()
+                                : "generate_tests");
+        PromptTemplate reviewTemplate =
+                templateRegistry.latest(
+                        StringUtils.hasText(request.reviewPromptTemplateId())
+                                ? request.reviewPromptTemplateId()
+                                : "review_diff");
 
         ReviewRun run = new ReviewRun();
         run.setRepo(source.repo());
@@ -144,18 +148,23 @@ public class ReviewService {
             if (redaction.hasBlocker() && !request.allowRedactedSend()) {
                 failRun(run);
                 auditService.recordBlocked(run, redaction);
-                throw new BlockedSecretException("diff contains BLOCKER-class secrets: "
-                        + redaction.hits().stream().filter(RedactionHit::blocker).map(RedactionHit::name)
-                                .sorted().collect(Collectors.joining(", "))
-                        + ". Set allowRedactedSend=true to send redacted content.");
+                throw new BlockedSecretException(
+                        "diff contains BLOCKER-class secrets: "
+                                + redaction.hits().stream()
+                                        .filter(RedactionHit::blocker)
+                                        .map(RedactionHit::name)
+                                        .sorted()
+                                        .collect(Collectors.joining(", "))
+                                + ". Set allowRedactedSend=true to send redacted content.");
             }
 
-            Map<String, Object> context = Map.of(
-                    "repo", source.repo(),
-                    "baseSha", source.baseSha(),
-                    "headSha", source.headSha(),
-                    "diff", diffRenderer.render(diffParser.parse(redaction.redacted())),
-                    "conventions", conventionsToText(conventions));
+            Map<String, Object> context =
+                    Map.of(
+                            "repo", source.repo(),
+                            "baseSha", source.baseSha(),
+                            "headSha", source.headSha(),
+                            "diff", diffRenderer.render(diffParser.parse(redaction.redacted())),
+                            "conventions", conventionsToText(conventions));
 
             String testPrompt = promptRenderer.render(testTemplate, context);
             TestGenerationResult testResult = llmClient.generateTests(testPrompt);
@@ -167,16 +176,34 @@ public class ReviewService {
                     testValidator.validate(new ValidationRequest(workspace, testResult.files()));
 
             List<GeneratedTest> tests = persistTests(run, testResult, validationResults);
-            List<ReviewComment> comments = persistComments(run, reviewResult,
-                    conventionsValidator.validate(testResult.files(), conventions));
+            List<ReviewComment> comments =
+                    persistComments(
+                            run,
+                            reviewResult,
+                            conventionsValidator.validate(testResult.files(), conventions));
 
-            auditService.record(run, testTemplate, testPrompt, testResult.rawResponse(), testResult.model(),
-                    testResult.latencyMs(), testResult.usage(), redaction.hits());
-            auditService.record(run, reviewTemplate, reviewPrompt, reviewResult.rawResponse(), reviewResult.model(),
-                    reviewResult.latencyMs(), reviewResult.usage(), redaction.hits());
+            auditService.record(
+                    run,
+                    testTemplate,
+                    testPrompt,
+                    testResult.rawResponse(),
+                    testResult.model(),
+                    testResult.latencyMs(),
+                    testResult.usage(),
+                    redaction.hits());
+            auditService.record(
+                    run,
+                    reviewTemplate,
+                    reviewPrompt,
+                    reviewResult.rawResponse(),
+                    reviewResult.model(),
+                    reviewResult.latencyMs(),
+                    reviewResult.usage(),
+                    redaction.hits());
 
             long tokensIn = (long) testResult.usage().tokensIn() + reviewResult.usage().tokensIn();
-            long tokensOut = (long) testResult.usage().tokensOut() + reviewResult.usage().tokensOut();
+            long tokensOut =
+                    (long) testResult.usage().tokensOut() + reviewResult.usage().tokensOut();
             BigDecimal cost = testResult.usage().costUsd().add(reviewResult.usage().costUsd());
             run.setTokenInput(tokensIn);
             run.setTokenOutput(tokensOut);
@@ -202,10 +229,13 @@ public class ReviewService {
     }
 
     private Path prepareWorkspace(DiffSource source) {
-        WorkspaceSpec spec = new WorkspaceSpec(source.repo(), source.cloneUrl(), source.headSha(), source.baseSha());
-        WorkspaceProvider provider = StringUtils.hasText(source.cloneUrl())
-                ? gitHubWorkspaceProvider
-                : syntheticWorkspaceProvider;
+        WorkspaceSpec spec =
+                new WorkspaceSpec(
+                        source.repo(), source.cloneUrl(), source.headSha(), source.baseSha());
+        WorkspaceProvider provider =
+                StringUtils.hasText(source.cloneUrl())
+                        ? gitHubWorkspaceProvider
+                        : syntheticWorkspaceProvider;
         return provider.prepare(spec);
     }
 
@@ -213,10 +243,15 @@ public class ReviewService {
         if (StringUtils.hasText(request.diff())) {
             return new DiffSource("local", "unknown", "unknown", null, request.diff());
         }
-        GitHubClient.PrInfo info = gitHubClient.getPrInfo(request.owner(), request.repo(), request.prNumber());
+        GitHubClient.PrInfo info =
+                gitHubClient.getPrInfo(request.owner(), request.repo(), request.prNumber());
         String diff = gitHubClient.getPrDiff(request.owner(), request.repo(), request.prNumber());
-        return new DiffSource(request.owner() + "/" + request.repo(), info.baseSha(), info.headSha(),
-                info.cloneUrl(), diff);
+        return new DiffSource(
+                request.owner() + "/" + request.repo(),
+                info.baseSha(),
+                info.headSha(),
+                info.cloneUrl(),
+                diff);
     }
 
     private CopilotGuardConventions resolveConventions(ReviewRequest request, DiffSource source) {
@@ -224,17 +259,23 @@ public class ReviewService {
             return conventionsLoader.parse(request.conventions());
         }
         if (StringUtils.hasText(request.owner())) {
-            return gitHubClient.fetchConventionsYaml(request.owner(), request.repo())
+            return gitHubClient
+                    .fetchConventionsYaml(request.owner(), request.repo())
                     .map(conventionsLoader::parse)
                     .orElseGet(ConventionsLoader::defaults);
         }
         return ConventionsLoader.defaults();
     }
 
-    private List<GeneratedTest> persistTests(ReviewRun run, TestGenerationResult result,
+    private List<GeneratedTest> persistTests(
+            ReviewRun run,
+            TestGenerationResult result,
             List<TestValidationResult> validationResults) {
-        Map<String, TestValidationResult> byPath = validationResults.stream()
-                .collect(Collectors.toMap(v -> v.test().path(), Function.identity(), (a, b) -> a));
+        Map<String, TestValidationResult> byPath =
+                validationResults.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        v -> v.test().path(), Function.identity(), (a, b) -> a));
         List<GeneratedTest> saved = new ArrayList<>();
         for (GeneratedTestFile file : result.files()) {
             TestValidationResult validation = byPath.get(file.path());
@@ -273,8 +314,8 @@ public class ReviewService {
         return saved;
     }
 
-    private List<ReviewComment> persistComments(ReviewRun run, ReviewGenerationResult result,
-            List<ConventionViolation> violations) {
+    private List<ReviewComment> persistComments(
+            ReviewRun run, ReviewGenerationResult result, List<ConventionViolation> violations) {
         List<ReviewComment> saved = new ArrayList<>();
         for (ReviewCommentSuggestion suggestion : result.comments()) {
             ReviewComment comment = new ReviewComment();
@@ -314,10 +355,18 @@ public class ReviewService {
         return yaml.dump(map);
     }
 
-    private ReviewResponse toResponse(ReviewRun run, List<GeneratedTest> tests, List<ReviewComment> comments,
+    private ReviewResponse toResponse(
+            ReviewRun run,
+            List<GeneratedTest> tests,
+            List<ReviewComment> comments,
             List<GeneratedTestFile> generatedFiles) {
-        Map<String, String> contentByPath = generatedFiles.stream()
-                .collect(Collectors.toMap(GeneratedTestFile::path, GeneratedTestFile::content, (a, b) -> a));
+        Map<String, String> contentByPath =
+                generatedFiles.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        GeneratedTestFile::path,
+                                        GeneratedTestFile::content,
+                                        (a, b) -> a));
         return new ReviewResponse(
                 run.getId(),
                 run.getRepo(),
@@ -328,33 +377,49 @@ public class ReviewService {
                 run.getTokenInput() == null ? 0 : run.getTokenInput(),
                 run.getTokenOutput() == null ? 0 : run.getTokenOutput(),
                 run.getCostUsd(),
-                tests.stream().map(t -> new ReviewResponse.TestSummary(t.getFilePath(),
-                        t.getCompileStatus().name(),
-                        t.getPassStatus().name(),
-                        t.getValidationStatus().name(),
-                        t.getValidationStatus() == ValidationStatus.PASSING,
-                        t.getValidationDetail(),
-                        t.getValidationStatus() == ValidationStatus.PASSING
-                                ? contentByPath.get(t.getFilePath())
-                                : null)).toList(),
-                comments.stream().map(c -> new ReviewResponse.CommentSummary(c.getId(), c.getFilePath(), c.getLine(),
-                        c.getSeverity().name(), c.getCategory().name(), c.getBody())).toList());
+                tests.stream()
+                        .map(
+                                t ->
+                                        new ReviewResponse.TestSummary(
+                                                t.getFilePath(),
+                                                t.getCompileStatus().name(),
+                                                t.getPassStatus().name(),
+                                                t.getValidationStatus().name(),
+                                                t.getValidationStatus() == ValidationStatus.PASSING,
+                                                t.getValidationDetail(),
+                                                t.getValidationStatus() == ValidationStatus.PASSING
+                                                        ? contentByPath.get(t.getFilePath())
+                                                        : null))
+                        .toList(),
+                comments.stream()
+                        .map(
+                                c ->
+                                        new ReviewResponse.CommentSummary(
+                                                c.getId(),
+                                                c.getFilePath(),
+                                                c.getLine(),
+                                                c.getSeverity().name(),
+                                                c.getCategory().name(),
+                                                c.getBody()))
+                        .toList());
     }
 
     private static void deleteRecursively(Path dir) {
         try (var paths = Files.walk(dir)) {
-            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException ignored) {
-                    // best effort cleanup
-                }
-            });
+            paths.sorted(Comparator.reverseOrder())
+                    .forEach(
+                            path -> {
+                                try {
+                                    Files.deleteIfExists(path);
+                                } catch (IOException ignored) {
+                                    // best effort cleanup
+                                }
+                            });
         } catch (IOException ignored) {
             // best effort cleanup
         }
     }
 
-    private record DiffSource(String repo, String baseSha, String headSha, String cloneUrl, String diff) {
-    }
+    private record DiffSource(
+            String repo, String baseSha, String headSha, String cloneUrl, String diff) {}
 }

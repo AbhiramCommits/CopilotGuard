@@ -1,21 +1,17 @@
 package com.copilotguard.conventions;
 
+import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.yaml.snakeyaml.Yaml;
-
-import java.util.List;
-import java.util.Map;
 
 @Component
 public class ConventionsLoader {
 
     public static CopilotGuardConventions defaults() {
         return new CopilotGuardConventions(
-                ".*(Test|IT|ITs|Tests)$",
-                List.of(),
-                List.of("org.junit.jupiter.api.Test"),
-                100);
+                ".*(Test|IT|ITs|Tests)$", List.of(), List.of("org.junit.jupiter.api.Test"), 100);
     }
 
     public CopilotGuardConventions parse(String yamlText) {
@@ -31,7 +27,8 @@ public class ConventionsLoader {
         List<String> bannedApis = defaults.bannedApis();
         List<String> annotations = defaults.requiredTestAnnotations();
         int maxMethodLength = defaults.maxMethodLength();
-        if (map.get("naming") instanceof Map<?, ?> naming && naming.get("testClassNamePattern") instanceof String s) {
+        if (map.get("naming") instanceof Map<?, ?> naming
+                && naming.get("testClassNamePattern") instanceof String s) {
             pattern = s;
         }
         if (map.get("bannedApis") instanceof List<?> list) {
@@ -43,6 +40,7 @@ public class ConventionsLoader {
         if (map.get("maxMethodLength") instanceof Number number) {
             maxMethodLength = number.intValue();
         }
-        return new CopilotGuardConventions(pattern, List.copyOf(bannedApis), List.copyOf(annotations), maxMethodLength);
+        return new CopilotGuardConventions(
+                pattern, List.copyOf(bannedApis), List.copyOf(annotations), maxMethodLength);
     }
 }

@@ -1,10 +1,5 @@
 package com.copilotguard.prompt;
 
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
-import org.springframework.stereotype.Component;
-import org.yaml.snakeyaml.Yaml;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -12,6 +7,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.stereotype.Component;
+import org.yaml.snakeyaml.Yaml;
 
 @Component
 public class PromptTemplateRegistry {
@@ -22,7 +21,8 @@ public class PromptTemplateRegistry {
     public PromptTemplateRegistry(ResourceLoader resourceLoader) {
         Resource manifest = resourceLoader.getResource("classpath:prompts/prompts.yaml");
         Object loaded = new Yaml().load(read(manifest));
-        if (!(loaded instanceof Map<?, ?> root) || !(root.get("templates") instanceof List<?> entries)) {
+        if (!(loaded instanceof Map<?, ?> root)
+                || !(root.get("templates") instanceof List<?> entries)) {
             throw new IllegalStateException("invalid prompts manifest");
         }
         for (Object entry : entries) {
@@ -31,17 +31,28 @@ public class PromptTemplateRegistry {
             }
             String id = String.valueOf(e.get("id"));
             String version = String.valueOf(e.get("version"));
-            PromptPurpose purpose = PromptPurpose.valueOf(
-                    String.valueOf(e.get("purpose")).replace('-', '_').toUpperCase(Locale.ROOT));
+            PromptPurpose purpose =
+                    PromptPurpose.valueOf(
+                            String.valueOf(e.get("purpose"))
+                                    .replace('-', '_')
+                                    .toUpperCase(Locale.ROOT));
             String file = String.valueOf(e.get("file"));
             String changelog = String.valueOf(e.get("changelog"));
-            PromptTemplate template = new PromptTemplate(id, version, purpose, changelog,
-                    read(resourceLoader.getResource("classpath:prompts/" + file)));
+            PromptTemplate template =
+                    new PromptTemplate(
+                            id,
+                            version,
+                            purpose,
+                            changelog,
+                            read(resourceLoader.getResource("classpath:prompts/" + file)));
             templates.put(new Key(id, version), template);
-            latest.merge(id, template,
-                    (current, candidate) -> compareVersions(candidate.version(), current.version()) >= 0
-                            ? candidate
-                            : current);
+            latest.merge(
+                    id,
+                    template,
+                    (current, candidate) ->
+                            compareVersions(candidate.version(), current.version()) >= 0
+                                    ? candidate
+                                    : current);
         }
     }
 
@@ -83,6 +94,5 @@ public class PromptTemplateRegistry {
         return 0;
     }
 
-    private record Key(String id, String version) {
-    }
+    private record Key(String id, String version) {}
 }

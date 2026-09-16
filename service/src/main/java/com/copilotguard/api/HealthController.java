@@ -22,9 +22,10 @@ public class HealthController {
     @GetMapping("/health")
     public ResponseEntity<HealthComponent> health() {
         HealthComponent health = healthEndpoint.health();
-        HttpStatus status = Status.UP.equals(health.getStatus())
-                ? HttpStatus.OK
-                : HttpStatus.SERVICE_UNAVAILABLE;
+        HttpStatus status =
+                Status.UP.equals(health.getStatus())
+                        ? HttpStatus.OK
+                        : HttpStatus.SERVICE_UNAVAILABLE;
         return ResponseEntity.status(status).body(health);
     }
 }

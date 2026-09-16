@@ -8,6 +8,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -15,15 +19,11 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.List;
-
 @Component
 public class AnthropicLlmClient implements LlmClient {
 
-    private static final String SYSTEM_PROMPT = "You are CopilotGuard, an expert test author and code reviewer.";
+    private static final String SYSTEM_PROMPT =
+            "You are CopilotGuard, an expert test author and code reviewer.";
     private static final String TEST_TOOL = "submit_tests";
     private static final String REVIEW_TOOL = "submit_review_comments";
 
@@ -38,12 +38,13 @@ public class AnthropicLlmClient implements LlmClient {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout((int) anthropic.timeout().toMillis());
         requestFactory.setReadTimeout((int) anthropic.timeout().toMillis());
-        this.restClient = RestClient.builder()
-                .baseUrl(anthropic.baseUrl())
-                .requestFactory(requestFactory)
-                .defaultHeader("x-api-key", properties.anthropicApiKey())
-                .defaultHeader("anthropic-version", anthropic.version())
-                .build();
+        this.restClient =
+                RestClient.builder()
+                        .baseUrl(anthropic.baseUrl())
+                        .requestFactory(requestFactory)
+                        .defaultHeader("x-api-key", properties.anthropicApiKey())
+                        .defaultHeader("anthropic-version", anthropic.version())
+                        .build();
     }
 
     @Override
@@ -55,13 +56,20 @@ public class AnthropicLlmClient implements LlmClient {
         }
         List<GeneratedTestFile> files = new ArrayList<>();
         for (JsonNode fileNode : filesNode) {
-            files.add(new GeneratedTestFile(requireText(fileNode, "path"), requireText(fileNode, "content")));
+            files.add(
+                    new GeneratedTestFile(
+                            requireText(fileNode, "path"), requireText(fileNode, "content")));
         }
         if (files.isEmpty()) {
             throw new LlmException("model returned no test files");
         }
-        return new TestGenerationResult(List.copyOf(files), exchange.usage(), exchange.rawRequest(),
-                exchange.rawResponse(), exchange.latencyMs(), exchange.model());
+        return new TestGenerationResult(
+                List.copyOf(files),
+                exchange.usage(),
+                exchange.rawRequest(),
+                exchange.rawResponse(),
+                exchange.latencyMs(),
+                exchange.model());
     }
 
     @Override
@@ -75,8 +83,13 @@ public class AnthropicLlmClient implements LlmClient {
         for (JsonNode commentNode : commentsNode) {
             comments.add(parseComment(commentNode));
         }
-        return new ReviewGenerationResult(List.copyOf(comments), exchange.usage(), exchange.rawRequest(),
-                exchange.rawResponse(), exchange.latencyMs(), exchange.model());
+        return new ReviewGenerationResult(
+                List.copyOf(comments),
+                exchange.usage(),
+                exchange.rawRequest(),
+                exchange.rawResponse(),
+                exchange.latencyMs(),
+                exchange.model());
     }
 
     private ReviewCommentSuggestion parseComment(JsonNode node) {
@@ -85,7 +98,8 @@ public class AnthropicLlmClient implements LlmClient {
         Severity severity = parseEnum(node, "severity", Severity.class);
         CommentCategory category = parseEnum(node, "category", CommentCategory.class);
         String body = requireText(node, "body");
-        String suggestedFix = node.path("suggestedFix").isTextual() ? node.path("suggestedFix").asText() : null;
+        String suggestedFix =
+                node.path("suggestedFix").isTextual() ? node.path("suggestedFix").asText() : null;
         return new ReviewCommentSuggestion(file, line, severity, category, body, suggestedFix);
     }
 
@@ -115,17 +129,25 @@ public class AnthropicLlmClient implements LlmClient {
         long start = System.nanoTime();
         for (int attempt = 1; ; attempt++) {
             try {
-                String responseBody = restClient.post()
-                        .uri("/v1/messages")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(requestBody)
-                        .retrieve()
-                        .body(String.class);
+                String responseBody =
+                        restClient
+                                .post()
+                                .uri("/v1/messages")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(requestBody)
+                                .retrieve()
+                                .body(String.class);
                 return parse(responseBody, toolName, requestBody, elapsedMillis(start));
             } catch (RestClientResponseException | ResourceAccessException ex) {
                 if (attempt >= anthropic.maxAttempts() || !isRetryable(ex)) {
-                    throw new LlmException("Anthropic API call failed on attempt " + attempt + " of "
-                            + anthropic.maxAttempts() + ": " + describe(ex), ex);
+                    throw new LlmException(
+                            "Anthropic API call failed on attempt "
+                                    + attempt
+                                    + " of "
+                                    + anthropic.maxAttempts()
+                                    + ": "
+                                    + describe(ex),
+                            ex);
                 }
                 sleep(backoffMillis(ex, attempt));
             }
@@ -194,7 +216,8 @@ public class AnthropicLlmClient implements LlmClient {
         }
     }
 
-    private LlmExchange parse(String responseBody, String expectedTool, String requestBody, long latencyMs) {
+    private LlmExchange parse(
+            String responseBody, String expectedTool, String requestBody, long latencyMs) {
         JsonNode root;
         try {
             root = objectMapper.readTree(responseBody);
@@ -210,13 +233,19 @@ public class AnthropicLlmClient implements LlmClient {
             }
         }
         if (toolInput == null || toolInput.isMissingNode()) {
-            throw new LlmException("expected tool_use block '" + expectedTool + "' not found in response");
+            throw new LlmException(
+                    "expected tool_use block '" + expectedTool + "' not found in response");
         }
         JsonNode usage = root.path("usage");
         int tokensIn = usage.path("input_tokens").asInt(0);
         int tokensOut = usage.path("output_tokens").asInt(0);
         String model = root.path("model").asText(properties.anthropic().model());
-        return new LlmExchange(toolInput, requestBody, responseBody, model, latencyMs,
+        return new LlmExchange(
+                toolInput,
+                requestBody,
+                responseBody,
+                model,
+                latencyMs,
                 new LlmUsage(tokensIn, tokensOut, costUsd(model, tokensIn, tokensOut)));
     }
 
@@ -229,10 +258,13 @@ public class AnthropicLlmClient implements LlmClient {
             throw new LlmException("no price configured for model '" + model + "' or 'default'");
         }
         BigDecimal million = BigDecimal.valueOf(1_000_000);
-        return price.inputPerMTok().multiply(BigDecimal.valueOf(tokensIn))
+        return price.inputPerMTok()
+                .multiply(BigDecimal.valueOf(tokensIn))
                 .divide(million, 6, RoundingMode.HALF_UP)
-                .add(price.outputPerMTok().multiply(BigDecimal.valueOf(tokensOut))
-                        .divide(million, 6, RoundingMode.HALF_UP));
+                .add(
+                        price.outputPerMTok()
+                                .multiply(BigDecimal.valueOf(tokensOut))
+                                .divide(million, 6, RoundingMode.HALF_UP));
     }
 
     private JsonNode testsTool() {
@@ -266,19 +298,33 @@ public class AnthropicLlmClient implements LlmClient {
         comments.put("type", "array");
         ObjectNode items = comments.putObject("items");
         items.put("type", "object");
-        items.set("required", objectMapper.createArrayNode()
-                .add("file").add("severity").add("category").add("body"));
+        items.set(
+                "required",
+                objectMapper
+                        .createArrayNode()
+                        .add("file")
+                        .add("severity")
+                        .add("category")
+                        .add("body"));
         ObjectNode itemProps = items.putObject("properties");
         itemProps.putObject("file").put("type", "string");
         itemProps.putArray("line").add("integer").add("null");
         ObjectNode severity = itemProps.putObject("severity");
         severity.put("type", "string");
-        severity.set("enum", objectMapper.createArrayNode().add("BLOCKER").add("MAJOR").add("MINOR"));
+        severity.set(
+                "enum", objectMapper.createArrayNode().add("BLOCKER").add("MAJOR").add("MINOR"));
         ObjectNode category = itemProps.putObject("category");
         category.put("type", "string");
-        category.set("enum", objectMapper.createArrayNode()
-                .add("BUG").add("SECURITY").add("PERFORMANCE")
-                .add("STYLE").add("TESTING").add("READABILITY"));
+        category.set(
+                "enum",
+                objectMapper
+                        .createArrayNode()
+                        .add("BUG")
+                        .add("SECURITY")
+                        .add("PERFORMANCE")
+                        .add("STYLE")
+                        .add("TESTING")
+                        .add("READABILITY"));
         itemProps.putObject("body").put("type", "string");
         itemProps.putObject("suggestedFix").put("type", "string");
         return tool;
@@ -290,6 +336,5 @@ public class AnthropicLlmClient implements LlmClient {
             String rawResponse,
             String model,
             long latencyMs,
-            LlmUsage usage) {
-    }
+            LlmUsage usage) {}
 }

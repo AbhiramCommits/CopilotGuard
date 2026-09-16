@@ -28,4 +28,6 @@ class ServiceClient:
         try:
             return response.json(), latency_ms
         except ValueError:
-            return {"error": f"non-json response {response.status_code}: {response.text[:200]}"}, latency_ms
+            return {
+                "error": f"non-json response {response.status_code}: {response.text[:200]}"
+            }, latency_ms

@@ -1,4 +1,3 @@
 package com.copilotguard.audit;
 
-public record RedactionHit(String name, boolean blocker) {
-}
+public record RedactionHit(String name, boolean blocker) {}

@@ -8,6 +8,5 @@ public record MetricsSummary(
         double humanOverrideRate,
         List<RejectionReason> rejectionReasons) {
 
-    public record RejectionReason(String category, String severity, long count) {
-    }
+    public record RejectionReason(String category, String severity, long count) {}
 }

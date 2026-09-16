@@ -10,7 +10,8 @@ import java.util.Map;
 public record CopilotGuardProperties(
         String anthropicApiKey,
         Anthropic anthropic,
-        Github github) {
+        Github github,
+        Validation validation) {
 
     public record Anthropic(
             String baseUrl,
@@ -26,5 +27,14 @@ public record CopilotGuardProperties(
     }
 
     public record Github(String baseUrl, String rawBaseUrl, String token) {
+    }
+
+    public record Validation(
+            String image,
+            Duration compileTimeout,
+            Duration runTimeout,
+            long memoryMb,
+            double cpus,
+            String junitConsoleJar) {
     }
 }

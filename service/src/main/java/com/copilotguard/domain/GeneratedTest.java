@@ -39,4 +39,11 @@ public class GeneratedTest {
     @Enumerated(EnumType.STRING)
     @Column(name = "pass_status", nullable = false, length = 32)
     private PassStatus passStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "validation_status", nullable = false, length = 32)
+    private ValidationStatus validationStatus = ValidationStatus.PENDING;
+
+    @Column(name = "validation_detail", length = 4096)
+    private String validationDetail;
 }

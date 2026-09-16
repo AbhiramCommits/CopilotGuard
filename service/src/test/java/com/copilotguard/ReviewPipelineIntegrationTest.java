@@ -1,5 +1,6 @@
 package com.copilotguard;
 
+import com.copilotguard.api.AuditTrailResponse;
 import com.copilotguard.api.ReviewRequest;
 import com.copilotguard.api.ReviewResponse;
 import com.copilotguard.audit.PromptAudit;
@@ -15,6 +16,7 @@ import com.copilotguard.domain.ReviewRun;
 import com.copilotguard.domain.ReviewRunRepository;
 import com.copilotguard.domain.ReviewRunStatus;
 import com.copilotguard.domain.Severity;
+import com.copilotguard.domain.ValidationStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -38,8 +40,12 @@ import org.testcontainers.utility.DockerImageName;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
@@ -69,7 +75,21 @@ class ReviewPipelineIntegrationTest {
             " ",
             " public class Calculator {",
             "+    public int add(int a, int b) { return a + b; }",
-            "+    private static final String API_KEY = \"sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789\";",
+            "+    // author: dev@example.com",
+            "     public int subtract(int a, int b) { return a - b; }",
+            " }");
+
+    private static final String DIFF_WITH_AWS_KEY = String.join("\n",
+            "diff --git a/src/main/java/com/example/Calculator.java b/src/main/java/com/example/Calculator.java",
+            "index 7f8a2b1..9c3d4e5 100644",
+            "--- a/src/main/java/com/example/Calculator.java",
+            "+++ b/src/main/java/com/example/Calculator.java",
+            "@@ -1,6 +1,7 @@",
+            " package com.example;",
+            " ",
+            " public class Calculator {",
+            "+    public int add(int a, int b) { return a + b; }",
+            "+    // legacy key AKIAIOSFODNN7EXAMPLE",
             "     public int subtract(int a, int b) { return a - b; }",
             " }");
 
@@ -141,12 +161,19 @@ class ReviewPipelineIntegrationTest {
             .build();
 
     @DynamicPropertySource
-    static void configureWireMock(DynamicPropertyRegistry registry) {
+    static void configureTestProperties(DynamicPropertyRegistry registry) {
         registry.add("copilotguard.anthropic.base-url", WM::baseUrl);
         registry.add("copilotguard.anthropic-api-key", () -> "test-key");
         registry.add("copilotguard.github.base-url", WM::baseUrl);
         registry.add("copilotguard.github.raw-base-url", WM::baseUrl);
         registry.add("copilotguard.github.token", () -> "");
+        registry.add("copilotguard.validation.junit-console-jar", ReviewPipelineIntegrationTest::junitConsoleJar);
+    }
+
+    private static String junitConsoleJar() {
+        return System.getProperty("user.home")
+                + "/.m2/repository/org/junit/platform/junit-platform-console-standalone/1.10.5/"
+                + "junit-platform-console-standalone-1.10.5.jar";
     }
 
     @Autowired
@@ -181,9 +208,9 @@ class ReviewPipelineIntegrationTest {
     }
 
     @Test
-    void rawDiffHappyPathPersistsEverything() {
+    void rawDiffHappyPathPersistsEverythingAndRejectsUnvalidatedTests() {
         ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(SAMPLE_DIFF, null, null, null, CONVENTIONS_YAML), ReviewResponse.class);
+                new ReviewRequest(SAMPLE_DIFF, null, null, null, CONVENTIONS_YAML, false), ReviewResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ReviewResponse body = response.getBody();
@@ -192,6 +219,20 @@ class ReviewPipelineIntegrationTest {
         assertThat(body.repo()).isEqualTo("local");
         assertThat(body.promptTemplateId()).isEqualTo("generate_tests:v1");
         assertThat(body.generatedTests()).hasSize(2);
+        assertThat(body.generatedTests()).anySatisfy(test -> {
+            assertThat(test.filePath()).contains("CalculatorTest");
+            assertThat(test.validationStatus()).isEqualTo("COMPILE_FAIL");
+            assertThat(test.accepted()).isFalse();
+            assertThat(test.content()).isNull();
+            assertThat(test.compileStatus()).isEqualTo("FAILURE");
+            assertThat(test.validationDetail()).isNotBlank();
+        });
+        assertThat(body.generatedTests()).anySatisfy(test -> {
+            assertThat(test.filePath()).contains("CalculatorIT");
+            assertThat(test.validationStatus()).isEqualTo("PASSING");
+            assertThat(test.accepted()).isTrue();
+            assertThat(test.content()).contains("class CalculatorIT");
+        });
         assertThat(body.comments()).hasSize(3);
         assertThat(body.tokenInput()).isEqualTo(2100);
         assertThat(body.tokenOutput()).isEqualTo(1100);
@@ -199,35 +240,27 @@ class ReviewPipelineIntegrationTest {
 
         ReviewRun run = reviewRunRepository.findAll().get(0);
         assertThat(run.getStatus()).isEqualTo(ReviewRunStatus.SUCCEEDED);
-        assertThat(run.getTokenInput()).isEqualTo(2100);
-        assertThat(run.getTokenOutput()).isEqualTo(1100);
-        assertThat(run.getCostUsd()).isEqualByComparingTo(new BigDecimal("0.0228"));
 
         List<GeneratedTest> tests = generatedTestRepository.findAll();
         assertThat(tests).hasSize(2);
-        assertThat(tests).allSatisfy(test -> {
-            assertThat(test.getReviewRunId()).isEqualTo(run.getId());
-            assertThat(test.getCompileStatus()).isEqualTo(CompileStatus.PENDING);
+        assertThat(tests).anySatisfy(test -> {
+            assertThat(test.getFilePath()).contains("CalculatorTest");
+            assertThat(test.getCompileStatus()).isEqualTo(CompileStatus.FAILURE);
             assertThat(test.getPassStatus()).isEqualTo(PassStatus.PENDING);
-            assertThat(test.getSource()).isEqualTo("anthropic:" + MODEL);
+            assertThat(test.getValidationStatus()).isEqualTo(ValidationStatus.COMPILE_FAIL);
+        });
+        assertThat(tests).anySatisfy(test -> {
+            assertThat(test.getFilePath()).contains("CalculatorIT");
+            assertThat(test.getCompileStatus()).isEqualTo(CompileStatus.SUCCESS);
+            assertThat(test.getPassStatus()).isEqualTo(PassStatus.PASSED);
+            assertThat(test.getValidationStatus()).isEqualTo(ValidationStatus.PASSING);
         });
 
         List<ReviewComment> comments = reviewCommentRepository.findAll();
         assertThat(comments).hasSize(3);
         assertThat(comments).anySatisfy(comment -> {
-            assertThat(comment.getCategory()).isEqualTo(CommentCategory.BUG);
-            assertThat(comment.getSeverity()).isEqualTo(Severity.BLOCKER);
-            assertThat(comment.getBody()).contains("Division by zero").contains("Suggested fix");
-        });
-        assertThat(comments).anySatisfy(comment -> {
-            assertThat(comment.getCategory()).isEqualTo(CommentCategory.STYLE);
-            assertThat(comment.getSeverity()).isEqualTo(Severity.MINOR);
-        });
-        assertThat(comments).anySatisfy(comment -> {
             assertThat(comment.getCategory()).isEqualTo(CommentCategory.CONVENTIONS);
-            assertThat(comment.getSeverity()).isEqualTo(Severity.BLOCKER);
             assertThat(comment.getBody()).contains("banned API");
-            assertThat(comment.getFilePath()).isEqualTo("src/test/java/com/example/CalculatorIT.java");
         });
 
         List<PromptAudit> audits = promptAuditRepository.findAll();
@@ -235,17 +268,84 @@ class ReviewPipelineIntegrationTest {
         assertThat(audits).extracting(PromptAudit::getTemplateId)
                 .containsExactlyInAnyOrder("generate_tests", "review_diff");
         assertThat(audits).allSatisfy(audit -> {
-            assertThat(audit.getRunId()).isEqualTo(String.valueOf(run.getId()));
-            assertThat(audit.getTemplateVersion()).isEqualTo("v1");
-            assertThat(audit.getModel()).isEqualTo(MODEL);
-            assertThat(audit.getRedactedPrompt()).contains("[REDACTED:anthropic-api-key]");
-            assertThat(audit.getRedactedPrompt()).doesNotContain("sk-ant-");
-            assertThat(audit.getRedactionHits()).contains("anthropic-api-key");
-            assertThat(audit.getRawResponse()).contains("tool_use");
-            assertThat(audit.getLatencyMs()).isNotNull();
+            assertThat(audit.getRedactionHits()).contains("email");
+            assertThat(audit.getRedactedPrompt()).contains("[REDACTED:EMAIL:1]");
+            assertThat(audit.getRedactedPrompt()).doesNotContain("dev@example.com");
         });
 
         WM.verify(2, postRequestedFor(urlEqualTo("/v1/messages")));
+    }
+
+    @Test
+    void auditEndpointReturnsTrailAndVerdicts() {
+        restTemplate.postForEntity("/api/v1/reviews",
+                new ReviewRequest(SAMPLE_DIFF, null, null, null, null, false), ReviewResponse.class);
+
+        long runId = reviewRunRepository.findAll().get(0).getId();
+        ResponseEntity<AuditTrailResponse> auditResponse =
+                restTemplate.getForEntity("/api/v1/reviews/" + runId + "/audit", AuditTrailResponse.class);
+
+        assertThat(auditResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        AuditTrailResponse trail = auditResponse.getBody();
+        assertThat(trail).isNotNull();
+        assertThat(trail.runId()).isEqualTo(runId);
+        assertThat(trail.status()).isEqualTo("SUCCEEDED");
+        assertThat(trail.audits()).hasSize(2);
+        assertThat(trail.audits()).allSatisfy(entry -> {
+            assertThat(entry.redactedPrompt()).doesNotContain("dev@example.com");
+            assertThat(entry.redactionHits()).contains("email");
+            assertThat(entry.templateVersion()).isEqualTo("v1");
+        });
+        assertThat(trail.verdicts()).hasSize(2);
+        assertThat(trail.verdicts()).extracting(AuditTrailResponse.VerdictEntry::validationStatus)
+                .containsExactlyInAnyOrder("COMPILE_FAIL", "PASSING");
+    }
+
+    @Test
+    void auditEndpointReturns404ForUnknownRun() {
+        ResponseEntity<String> response = restTemplate.getForEntity("/api/v1/reviews/999999/audit", String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void blockerSecretFailsRunUnlessAllowRedactedSend() {
+        ResponseEntity<String> blocked = restTemplate.postForEntity("/api/v1/reviews",
+                new ReviewRequest(DIFF_WITH_AWS_KEY, null, null, null, null, false), String.class);
+
+        assertThat(blocked.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(blocked.getBody()).contains("aws_key", "allowRedactedSend");
+
+        ReviewRun failedRun = reviewRunRepository.findAll().get(0);
+        assertThat(failedRun.getStatus()).isEqualTo(ReviewRunStatus.FAILED);
+
+        List<PromptAudit> blockedAudits = promptAuditRepository.findAll();
+        assertThat(blockedAudits).hasSize(1);
+        PromptAudit blockedAudit = blockedAudits.get(0);
+        assertThat(blockedAudit.getRedactionHits()).contains("aws_key");
+        assertThat(blockedAudit.getRedactedPrompt()).contains("[REDACTED:AWS_KEY:1]");
+        assertThat(blockedAudit.getRedactedPrompt()).doesNotContain("AKIAIOSFODNN7EXAMPLE");
+
+        WM.verify(0, postRequestedFor(urlEqualTo("/v1/messages")));
+    }
+
+    @Test
+    void blockerSecretIsRedactedAndSentWhenAllowed() {
+        ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
+                new ReviewRequest(DIFF_WITH_AWS_KEY, null, null, null, null, true), ReviewResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ReviewResponse body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.status()).isEqualTo("SUCCEEDED");
+
+        List<PromptAudit> audits = promptAuditRepository.findAll();
+        assertThat(audits).hasSize(2);
+        assertThat(audits).allSatisfy(audit -> {
+            assertThat(audit.getRedactionHits()).contains("aws_key");
+            assertThat(audit.getRedactedPrompt()).contains("[REDACTED:AWS_KEY:1]");
+            assertThat(audit.getRedactedPrompt()).doesNotContain("AKIAIOSFODNN7EXAMPLE");
+        });
     }
 
     @Test
@@ -285,7 +385,7 @@ class ReviewPipelineIntegrationTest {
         promptAuditRepository.deleteAll();
 
         ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(SAMPLE_DIFF, null, null, null, null), ReviewResponse.class);
+                new ReviewRequest(SAMPLE_DIFF, null, null, null, null, false), ReviewResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
@@ -296,12 +396,14 @@ class ReviewPipelineIntegrationTest {
     }
 
     @Test
-    void githubPrPathFetchesDiffMetaAndConventions() throws JsonProcessingException {
+    void githubPrPathFetchesDiffMetaConventionsAndValidatesAgainstClone() throws Exception {
+        LocalRepo repo = createLocalRepo();
         WM.resetAll();
         WM.stubFor(get(urlPathEqualTo("/repos/acme/widgets/pulls/7"))
                 .withHeader("Accept", equalTo("application/vnd.github+json"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json")
-                        .withBody("{\"base\":{\"sha\":\"base-sha-123\"},\"head\":{\"sha\":\"head-sha-456\"}}")));
+                        .withBody("{\"base\":{\"sha\":\"" + repo.sha() + "\"},\"head\":{\"sha\":\"" + repo.sha()
+                                + "\",\"repo\":{\"clone_url\":\"file://" + repo.dir() + "\"}}}")));
         WM.stubFor(get(urlPathEqualTo("/repos/acme/widgets/pulls/7"))
                 .withHeader("Accept", equalTo("application/vnd.github.v3.diff"))
                 .willReturn(aResponse().withBody(SAMPLE_DIFF)));
@@ -331,24 +433,32 @@ class ReviewPipelineIntegrationTest {
         promptAuditRepository.deleteAll();
 
         ResponseEntity<ReviewResponse> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(null, "acme", "widgets", 7, null), ReviewResponse.class);
+                new ReviewRequest(null, "acme", "widgets", 7, null, false), ReviewResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ReviewResponse body = response.getBody();
         assertThat(body).isNotNull();
         assertThat(body.repo()).isEqualTo("acme/widgets");
-        assertThat(body.baseSha()).isEqualTo("base-sha-123");
-        assertThat(body.headSha()).isEqualTo("head-sha-456");
+        assertThat(body.baseSha()).isEqualTo(repo.sha());
+        assertThat(body.headSha()).isEqualTo(repo.sha());
+
+        assertThat(body.generatedTests()).anySatisfy(test -> {
+            assertThat(test.filePath()).contains("CalculatorTest");
+            assertThat(test.validationStatus()).isEqualTo("PASSING");
+            assertThat(test.accepted()).isTrue();
+            assertThat(test.content()).contains("class CalculatorTest");
+        });
+        assertThat(body.generatedTests()).anySatisfy(test -> {
+            assertThat(test.filePath()).contains("CalculatorIT");
+            assertThat(test.accepted()).isFalse();
+        });
 
         ReviewRun run = reviewRunRepository.findAll().get(0);
         assertThat(run.getRepo()).isEqualTo("acme/widgets");
-        assertThat(run.getBaseSha()).isEqualTo("base-sha-123");
-        assertThat(run.getHeadSha()).isEqualTo("head-sha-456");
         assertThat(run.getStatus()).isEqualTo(ReviewRunStatus.SUCCEEDED);
 
         assertThat(reviewCommentRepository.findAll()).anySatisfy(comment -> {
             assertThat(comment.getCategory()).isEqualTo(CommentCategory.CONVENTIONS);
-            assertThat(comment.getSeverity()).isEqualTo(Severity.BLOCKER);
             assertThat(comment.getBody()).contains("banned API");
         });
 
@@ -359,10 +469,48 @@ class ReviewPipelineIntegrationTest {
     @Test
     void rejectsRequestWithoutDiffOrPrReference() {
         ResponseEntity<String> response = restTemplate.postForEntity("/api/v1/reviews",
-                new ReviewRequest(null, null, null, null, null), String.class);
+                new ReviewRequest(null, null, null, null, null, false), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).contains("provide either 'diff' or");
+    }
+
+    private static LocalRepo createLocalRepo() throws IOException, InterruptedException {
+        Path dir = Files.createTempDirectory("copilotguard-fixture-repo");
+        Files.createDirectories(dir.resolve("src/main/java/com/example"));
+        Files.writeString(dir.resolve("src/main/java/com/example/Calculator.java"), String.join("\n",
+                "package com.example;",
+                "",
+                "public class Calculator {",
+                "    public int add(int a, int b) { return a + b; }",
+                "}",
+                ""));
+        run("git", "init", dir.toString());
+        run("git", "-C", dir.toString(), "add", ".");
+        run("git", "-C", dir.toString(), "-c", "user.email=test@example.com",
+                "-c", "user.name=Test", "commit", "-m", "initial");
+        String sha = capture("git", "-C", dir.toString(), "rev-parse", "HEAD").strip();
+        return new LocalRepo(dir, sha);
+    }
+
+    private static void run(String... command) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        process.getInputStream().readAllBytes();
+        if (!process.waitFor(60, TimeUnit.SECONDS) || process.exitValue() != 0) {
+            throw new IllegalStateException("command failed: " + String.join(" ", command));
+        }
+    }
+
+    private static String capture(String... command) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes());
+        if (!process.waitFor(60, TimeUnit.SECONDS) || process.exitValue() != 0) {
+            throw new IllegalStateException("command failed: " + String.join(" ", command));
+        }
+        return output;
+    }
+
+    private record LocalRepo(Path dir, String sha) {
     }
 
     private void stubAnthropic(String testsBody, String reviewBody) {

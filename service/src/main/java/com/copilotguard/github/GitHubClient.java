@@ -53,10 +53,14 @@ public class GitHubClient {
             JsonNode root = objectMapper.readTree(body);
             String baseSha = root.path("base").path("sha").asText();
             String headSha = root.path("head").path("sha").asText();
+            String cloneUrl = root.path("head").path("repo").path("clone_url").asText("");
+            if (cloneUrl.isBlank()) {
+                cloneUrl = root.path("base").path("repo").path("clone_url").asText("");
+            }
             if (baseSha.isBlank() || headSha.isBlank()) {
                 throw new GitHubException("PR metadata missing base/head sha");
             }
-            return new PrInfo(baseSha, headSha);
+            return new PrInfo(baseSha, headSha, cloneUrl);
         } catch (JsonProcessingException ex) {
             throw new GitHubException("failed to parse PR metadata", ex);
         }
@@ -84,6 +88,6 @@ public class GitHubClient {
         }
     }
 
-    public record PrInfo(String baseSha, String headSha) {
+    public record PrInfo(String baseSha, String headSha, String cloneUrl) {
     }
 }

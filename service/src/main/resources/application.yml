@@ -39,3 +39,10 @@ copilotguard:
     base-url: ${GITHUB_API_URL:https://api.github.com}
     raw-base-url: ${GITHUB_RAW_URL:https://raw.githubusercontent.com}
     token: ${GITHUB_TOKEN:}
+  validation:
+    image: ${VALIDATION_IMAGE:eclipse-temurin:21-jdk}
+    compile-timeout: 120s
+    run-timeout: 120s
+    memory-mb: 512
+    cpus: 1.0
+    junit-console-jar: /opt/copilotguard/junit-console-standalone.jar

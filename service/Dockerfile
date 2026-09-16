@@ -10,6 +10,7 @@ RUN groupadd --system copilotguard \
     && useradd --system --gid copilotguard --create-home copilotguard
 WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
+COPY --from=build /root/.m2/repository/org/junit/platform/junit-platform-console-standalone/*/junit-platform-console-standalone-*.jar /opt/copilotguard/junit-console-standalone.jar
 USER copilotguard
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

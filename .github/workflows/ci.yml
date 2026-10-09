@@ -70,6 +70,9 @@ jobs:
   container-scan:
     name: Image build and Trivy scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # upload-sarif writes to code scanning
     steps:
       - uses: actions/checkout@v4
 
@@ -77,13 +80,14 @@ jobs:
         run: docker build -t copilotguard-ci:${{ github.sha }} ./service
 
       - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.24.0
         with:
           image-ref: copilotguard-ci:${{ github.sha }}
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
           exit-code: "1"
+          trivyignores: .trivyignore  # accepted findings, each with a reason and expiry
 
       - name: Upload Trivy SARIF report
         if: always()

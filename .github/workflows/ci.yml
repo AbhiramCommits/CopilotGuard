@@ -87,6 +87,7 @@ jobs:
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
           exit-code: "1"
+          trivyignores: .trivyignore  # accepted findings, each with a reason and expiry
 
       - name: Upload Trivy SARIF report
         if: always()

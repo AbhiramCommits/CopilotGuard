@@ -1,0 +1,19 @@
+# Accepted Trivy findings for the service image. Each entry expires so it is
+# re-reviewed; remove an entry as soon as a fixed version can be adopted.
+
+# spring-webmvc 6.2.x: fixed only in Spring Framework 7.0.9, i.e. Spring Boot 4.
+# Tracked as the Spring Boot 4 migration; Boot 3.5.16 ships the latest 6.2.x.
+CVE-2026-47884 exp:2027-01-31
+CVE-2026-47890 exp:2027-01-31
+
+# httpcore5 5.0.2 shaded inside docker-java-transport-zerodep (Testcontainers'
+# Docker client, used by DockerTestValidator). No docker-java release bundles a
+# fixed httpcore5 (3.7.1 ships 5.3.6; fix is 5.4.3). The transport only talks to
+# the local Docker daemon socket, not to untrusted HTTP peers.
+CVE-2026-54399 exp:2027-01-31
+CVE-2026-54428 exp:2027-01-31
+
+# Go stdlib in usr/bin/pebble, shipped by the eclipse-temurin:21-jre (Ubuntu)
+# base image; not part of the application and not run by it.
+CVE-2026-78667 exp:2027-01-31
+CVE-2026-97031 exp:2027-01-31

@@ -79,18 +79,29 @@ jobs:
       - name: Build service image
         run: docker build -t copilotguard-ci:${{ github.sha }} ./service
 
-      - name: Trivy vulnerability scan
+      # Report for code scanning. With format: sarif, trivy-action drops the
+      # severity filter (all severities are reported), so this step must not
+      # gate the job; the table scan below does.
+      - name: Trivy report (SARIF, all severities)
         uses: aquasecurity/trivy-action@v0.24.0
         with:
           image-ref: copilotguard-ci:${{ github.sha }}
           format: sarif
           output: trivy-results.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "1"
-          trivyignores: .trivyignore  # accepted findings, each with a reason and expiry
+          exit-code: "0"
+          trivyignores: .trivyignore
 
       - name: Upload Trivy SARIF report
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-results.sarif
+
+      - name: Trivy gate (CRITICAL/HIGH)
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: copilotguard-ci:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          trivyignores: .trivyignore  # accepted findings, each with a reason and expiry

@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.platform.console.ConsoleLauncher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -168,10 +170,19 @@ class ValidationGateIntegrationTest {
                 ValidationGateIntegrationTest::junitConsoleJar);
     }
 
+    /** The junit-platform-console-standalone jar on the test classpath, whatever its version. */
     private static String junitConsoleJar() {
-        return System.getProperty("user.home")
-                + "/.m2/repository/org/junit/platform/junit-platform-console-standalone/1.10.5/"
-                + "junit-platform-console-standalone-1.10.5.jar";
+        try {
+            return Path.of(
+                            ConsoleLauncher.class
+                                    .getProtectionDomain()
+                                    .getCodeSource()
+                                    .getLocation()
+                                    .toURI())
+                    .toString();
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Autowired TestRestTemplate restTemplate;
